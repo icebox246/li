@@ -1,0 +1,11 @@
+let a := 34
+let b := 35
+
+let c := a + b
+
+print c
+
+c *= a
+c /= 2
+
+print c
