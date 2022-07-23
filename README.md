@@ -25,17 +25,21 @@ ocaml li.ml
 
 <!-- TODOS -->
 
-**TODO (6):**
+**TODO (4):**
 
-- [ ] add variable scoping
 - [ ] add procedures
 - [ ] add functions
-- [ ] add custom tokenization instead of words
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm
 
-**DONE (2):**
+**DONE (8):**
 
+- [x] add custom tokenization instead of words
+- [x] add if-else statements
+- [x] add if statements
+- [x] add scopes
+- [x] add variable scoping
+- [x] implement custom parsing
 - [x] implement some sort of vm in ocaml
 - [x] implement basic parsing
 <!-- ENDTODOS -->
