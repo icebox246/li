@@ -181,12 +181,20 @@ type expression =
     | LabelEx of string
     | OpEx of expression * operator * expression
 
-let rec compile_expr tokens = 
+let rec compile_expr tokens vars = 
+    let rec check_var name vars =
+        match vars with
+        | [] -> raise @@ CompilationError ("undefined variable `" ^ name ^ "`")
+        | v :: r -> ( match Hashtbl.find_opt v name with
+                      | Some _ -> ()
+                      | None -> check_var name r
+                    )
+    in
     let (lhs, tokens) = 
         match tokens with
         | (ValueToken v,_) :: r -> (ValueEx v, r)
-        | (LabelToken n,_) :: r -> (LabelEx n, r)
-        | (OpenParenToken, _) :: r -> (let (e,r) = compile_expr r in 
+        | (LabelToken n,_) :: r -> check_var n vars; (LabelEx n, r)
+        | (OpenParenToken, _) :: r -> (let (e,r) = compile_expr r vars in 
                                         match (e,r) with
                                         | (e, (CloseParenToken,_) :: r) -> (e,r)
                                         | _ -> raise @@ CompilationError ("missing `)`")
@@ -196,7 +204,7 @@ let rec compile_expr tokens =
     in
     match tokens with
     | (OpToken o,_) :: r -> 
-            let (rhs,tokens) = compile_expr r in (OpEx (lhs, o, rhs),tokens)
+            let (rhs,tokens) = compile_expr r vars in (OpEx (lhs, o, rhs),tokens)
     | _ -> (lhs, tokens)
 
 type statement =
@@ -210,11 +218,32 @@ type statement =
 let (@<) a (b,c) =
     (a @ b, c)
 
+type compile_var_type =
+    | Variable
+    | Function of int
+
 let compile tokens =
-    let rec compile tokens is_global single =
+    let push_new_scope vars =
+        Hashtbl.create 128 :: vars
+    in
+    let rec compile tokens is_global single vars =
        let compile_tail rst =
            if single   then ([],rst)
-                       else compile rst is_global single
+                       else compile rst is_global single vars
+       in
+       let define_var name typ =
+           let vars = List.hd vars in
+           match Hashtbl.find_opt vars name with
+           | Some _ -> raise @@ CompilationError ("redeclaration of `" ^ name ^ "`")
+           | None -> Hashtbl.add vars name typ
+       in
+       let rec check_var name vars =
+           match vars with
+           | [] -> raise @@ CompilationError ("undefined variable `" ^ name ^ "`")
+           | v :: r -> ( match Hashtbl.find_opt v name with
+                         | Some _ -> ()
+                         | None -> check_var name r
+                       )
        in
        match tokens with
        | [] when is_global -> ([],[])
@@ -222,27 +251,30 @@ let compile tokens =
        | (CloseCurlyToken,l) :: rst when not is_global ->
                ([],rst)
        | (VarToken,l) :: (LabelToken name,_) :: (SetToken,_) :: rst -> 
-               let (e,rst) = compile_expr rst in
-                   [VarDeclare name; SetVariable (name,e)] @< compile_tail rst
+               define_var name Variable;
+               let (e,rst) = compile_expr rst vars in
+                   [VarDeclare name; SetVariable (name,e)] @< compile_tail rst;
        | (VarToken,l) :: (LabelToken name,_) :: rst -> 
+               define_var name Variable;
                    [VarDeclare name] @< compile_tail rst
        | (LabelToken name,l) :: (SetToken,_)  :: rst -> 
-               let (e,rst) = compile_expr rst in
+               check_var name vars;
+               let (e,rst) = compile_expr rst vars in
                    [SetVariable (name,e)] @< compile_tail rst
        | (LabelToken n1,l) :: (InlineOpToken o,_) :: rst -> 
-               let (e,rst) = compile_expr rst in
+               let (e,rst) = compile_expr rst vars in
                    [SetVariable (n1,OpEx(LabelEx n1,o,e))] @< compile_tail rst
        | (PrintToken,l)  :: rst -> 
-               let (e,rst) = compile_expr rst in
+               let (e,rst) = compile_expr rst vars in
                    [PrintValue e] @< compile_tail rst
        | (OpenCurlyToken,l) :: rst ->
-               let (sts,rst) = compile rst false false in
+               let (sts,rst) = compile rst false false (push_new_scope vars) in
                    [ScopeBlock sts] @< compile_tail rst
        | (IfToken,l) :: rst ->
-               let (e,rst) = compile_expr rst in
-               let (sts,rst) = compile rst false true in
+               let (e,rst) = compile_expr rst vars in
+               let (sts,rst) = compile rst false true (push_new_scope vars) in
                (   match rst with
-                   | (ElseToken,_) :: rst -> ( let (ests,rst) = compile rst false true in
+                   | (ElseToken,_) :: rst -> ( let (ests,rst) = compile rst false true (push_new_scope vars) in
                                                [IfElseStatement (e,sts,ests)] @< compile_tail rst
                                              )
                    | _ -> [IfStatement (e,sts)] @< compile_tail rst
@@ -251,7 +283,7 @@ let compile tokens =
                raise @@ 
                    CompilationError ("unexpected token: " ^ string_of_location l ^ " " ^ string_of_token t)
     in
-    let (a,_) = compile tokens true false in a
+    let (a,_) = compile tokens true false (push_new_scope []) in a
 
 exception EvaluationException of string
 
@@ -263,14 +295,12 @@ let rec evaluate program vars =
                           | Some v -> v 
                           | None -> get_var name r
                         )
-            | [] -> raise @@ EvaluationException ("undeclared variable `" ^ name ^ "`")
+            | [] -> raise @@ EvaluationException ("unreachable! : undeclared variable `" ^ name ^ "`")
         in
 
     let declare_var name = 
         let vars = List.hd vars in
-        match Hashtbl.find_opt vars name with
-        | Some _ -> raise @@ EvaluationException ("redeclaration of `" ^ name ^ "`")
-        | None -> Hashtbl.add vars name Null 
+            Hashtbl.add vars name Null 
         in
 
     let rec set_var name va vars =  
@@ -279,7 +309,7 @@ let rec evaluate program vars =
                           | Some _ ->  Hashtbl.replace v name va
                           | None -> set_var name va r
                         )
-            | [] -> raise @@ EvaluationException ("undeclared variable `" ^ name ^ "`")
+            | [] -> raise @@ EvaluationException ("unreachable! : undeclared variable `" ^ name ^ "`")
         in
 
     let add_values v1 v2 = 
