@@ -42,7 +42,7 @@ $ print "'W' = "
 $ println char_at str1 0
 
 
-// function wich calculates length of string
+// function which calculates length of string
 fn strlen str => {
 	fn __strlen str i => {
 		if (char_at str i) == 0 
@@ -57,7 +57,7 @@ $ print "length of '" + str + "' is " $println strlen str
 
 $ println "========="
 
-// function which converts strint to int
+// function which converts string to int
 fn stoi str => {
 	let len := strlen str
 	fn __stoi i res => {
@@ -75,3 +75,25 @@ let sth := "3124"
 $print sth + " + 1 = "
 $println (stoi sth) + 1
 
+// a % b
+fn mod a b => {
+	__return := a - ((a / b) * b)
+}
+
+// function which converts int to string
+fn itos n => {
+	if n == 0 __return := "0"
+	else {
+		fn __itos n => {
+			__return := ""
+			if n > 0 {
+				let c := (mod n 10) + '0'
+				__return := (__itos (n/10)) + string_of_char c
+			}
+		}
+		__return := __itos n
+	}
+}
+
+if (itos stoi sth) == sth 
+	$ println "stoi and itos it works!"

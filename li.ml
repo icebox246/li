@@ -512,6 +512,10 @@ let rec evaluate program scopes =
                                                                                         else Int (int_of_char (String.get str p))
                                      | _ -> raise @@ EvaluationException ("mismatch types in `char_at`")
                                    )
+        | BuiltIn ("string_of_char",1) -> ( match args with
+                                            | [Int c] -> String (String.make 1 (char_of_int c))
+                                            | _ -> raise @@ EvaluationException ("mismatch types in `string_of_char")
+                                          )
         | BuiltIn (name,arity) -> raise @@ EvaluationException ("not implemented builtin " ^ name ^ "/" ^ string_of_int arity)
     in
 
@@ -577,6 +581,7 @@ let () =
                 BuiltIn ("println",1);
                 BuiltIn ("substr",3);
                 BuiltIn ("char_at",2);
+                BuiltIn ("string_of_char",1);
                 ] in
     let program = compile tokens builtins in
     evaluate program {vars=[]; funcs=Hashtbl.create 128;}

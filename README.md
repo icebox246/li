@@ -14,8 +14,9 @@ ocaml li.ml
 
 <!-- TODOS -->
 
-**TODO (2):**
+**TODO (3):**
 
+- [ ] add character to string conversion
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm
 
