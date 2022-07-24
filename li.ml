@@ -157,6 +157,7 @@ let rec parse ic loc =
                                                  (op,loc) :: parse_c r (move_location_by_cols loc len)
                | c :: r when is_numeric c -> let (num,r,len) = parse_int "" chars in 
                                                  (num,loc) :: parse_c r (move_location_by_cols loc len)
+               | '\'' :: c :: '\'' :: r -> (ValueToken (Int (int_of_char c)), loc) :: parse_c r (move_location_by_cols loc 3)
                | '"' :: r -> let (str,r,len) = parse_string "" r in (str,loc) :: parse_c r (move_location_by_cols loc len)
                | '(' :: r -> (OpenParenToken, loc) :: parse_c r (move_location_by_cols loc 1)
                | ')' :: r -> (CloseParenToken, loc) :: parse_c r (move_location_by_cols loc 1)

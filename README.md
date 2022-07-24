@@ -19,8 +19,9 @@ ocaml li.ml
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm
 
-**DONE (16):**
+**DONE (17):**
 
+- [x] add character literals
 - [x] add comments
 - [x] add syntax highlighting for vim
 - [x] add builtins for string manipulation

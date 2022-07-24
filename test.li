@@ -58,3 +58,20 @@ $ print "length of '" + str + "' is " $println strlen str
 $ println "========="
 
 // function which converts strint to int
+fn stoi str => {
+	let len := strlen str
+	fn __stoi i res => {
+		if i < len {
+			res *= 10	
+			res += (char_at str i) - '0'
+			__return := __stoi (i+1) res
+		} else 
+			__return := res
+	}
+	__return := __stoi 0 0
+}
+
+let sth := "3124"
+$print sth + " + 1 = "
+$println (stoi sth) + 1
+
