@@ -150,6 +150,8 @@ let rec parse ic loc =
            let rec parse_c chars loc = 
                match chars with
                | [] -> []
+               (* Comment *)
+               | '/' :: '/' :: r -> [] 
                | c :: r when is_whitespace c -> parse_c r (move_location_by_cols loc 1)
                | c :: r when is_op_char c -> let (op,r,len) = parse_op "" chars in 
                                                  (op,loc) :: parse_c r (move_location_by_cols loc len)

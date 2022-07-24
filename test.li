@@ -1,19 +1,23 @@
+// Examples in li
+
+// simple string printing
 $println "Hello, li!"
 
 $println "========="
 
+// function computing a ^ b
 fn pow a b => 
 	if b == 0 __return := 1
 	else {
 		__return := a * (pow a (b - 1))
 	}
 
-
 $print "3 ^ 5 = "
 $println pow 3 5
 
 $println "========="
 
+// function printing numbers from range a .. b
 fn print_range a b => 
 	if a <= b {
 		$print a	
@@ -27,12 +31,15 @@ $println ""
 
 $println "========="
 
+// examples on string manipulation
 let str := "Hello World!"
 $println str
-$println substr str 6 5
 
-$print "'H' = "
-$println char_at str 0
+let str1 := substr str 6 5
+$println str1
+
+$print "'W' = "
+$println char_at str1 0
 
 fn __strlen str i => {
 	if (char_at str i) == 0 
@@ -41,6 +48,7 @@ fn __strlen str i => {
 		__return := __strlen str (i+1)
 }
 
+// function wich calculates length of string
 fn strlen str => {
 	__return := __strlen str 0
 }

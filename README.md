@@ -4,18 +4,7 @@ Simple language written in ocaml.
 
 ## Example
 
-```
-print "Hello," + " World!"
-
-var a := 2
-var b := 1 + 3
-
-var c := a * b
-
-c *= 3
-
-print c
-```
+[examples in test.li](test.li)
 
 ## Get started
 
@@ -27,12 +16,13 @@ ocaml li.ml
 
 **TODO (3):**
 
-- [ ] add syntax highlighting for vim
+- [ ] add comments
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm
 
-**DONE (14):**
+**DONE (15):**
 
+- [x] add syntax highlighting for vim
 - [x] add builtins for string manipulation
 - [x] create function like abstraction for builtins
 - [x] add operators for int comparison
