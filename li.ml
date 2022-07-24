@@ -500,6 +500,15 @@ let rec evaluate program scopes =
         match b with
         | BuiltIn ("print",1) -> print_value (List.hd args); Null
         | BuiltIn ("println",1) -> print_value (List.hd args); print_newline(); Null
+        | BuiltIn ("substr",3) -> ( match args with
+                                    | [String str; Int b; Int l] -> String (String.sub str b l)
+                                    | _ -> raise @@ EvaluationException ("mismatch types in `substr`")
+                                  )
+        | BuiltIn ("char_at",2) -> ( match args with
+                                     | [String str; Int p] -> if String.length str == p then Int 0
+                                                                                        else Int (int_of_char (String.get str p))
+                                     | _ -> raise @@ EvaluationException ("mismatch types in `char_at`")
+                                   )
         | BuiltIn (name,arity) -> raise @@ EvaluationException ("not implemented builtin " ^ name ^ "/" ^ string_of_int arity)
     in
 
@@ -563,6 +572,8 @@ let () =
     let builtins = [
                 BuiltIn ("print",1);
                 BuiltIn ("println",1);
+                BuiltIn ("substr",3);
+                BuiltIn ("char_at",2);
                 ] in
     let program = compile tokens builtins in
     evaluate program {vars=[]; funcs=Hashtbl.create 128;}

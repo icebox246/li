@@ -24,3 +24,27 @@ fn print_range a b =>
 
 $print_range 1 3
 $println ""
+
+$println "========="
+
+let str := "Hello World!"
+$println str
+$println substr str 6 5
+
+$print "'H' = "
+$println char_at str 0
+
+fn __strlen str i => {
+	if (char_at str i) == 0 
+		__return := i
+	else
+		__return := __strlen str (i+1)
+}
+
+fn strlen str => {
+	__return := __strlen str 0
+}
+
+$print "length of '" + str + "' is " $println strlen str
+
+$println "========="
