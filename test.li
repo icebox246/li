@@ -1,11 +1,15 @@
-print "Hello, li!"
+println "Hello, li!"
 
-let a := 2 + 1
-
-if a == 2  {
-	print "a is 2"
+let pow := fn a b => {
+	if b == 0 __return := 1
+	else {
+		__return := a * (pow a (b - 1))
+	}
 }
-else if a == 3
-	print "a is 3"
-else 
-	print "a is not 2 nor 3"
+
+println "========="
+
+print "3 ^ 5 = "
+println pow 3 5
+
+println "========="

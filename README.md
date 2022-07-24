@@ -25,15 +25,15 @@ ocaml li.ml
 
 <!-- TODOS -->
 
-**TODO (4):**
+**TODO (2):**
 
-- [ ] add procedures
-- [ ] add functions
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm
 
-**DONE (8):**
+**DONE (10):**
 
+- [x] add functions
+- [x] add procedures
 - [x] add custom tokenization instead of words
 - [x] add if-else statements
 - [x] add if statements

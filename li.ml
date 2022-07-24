@@ -19,6 +19,7 @@ type value =
     | Int of int
     | String of string
     | Bool of bool
+    | Func of int
 
 type operator =
     | Add
@@ -37,10 +38,13 @@ type token =
     | OpToken of operator
     | InlineOpToken of operator
     | PrintToken
+    | PrintLnToken
     | ValueToken of value
     | LabelToken of string
     | IfToken
     | ElseToken
+    | FunctionToken
+    | ArrowToken
 
 
 exception TokenizationError of string
@@ -60,7 +64,7 @@ let is_whitespace c =
 
 let is_op_char c = 
     match c with
-    | '+' | '-' | '/' | '*' | '=' | ':' -> true
+    | '+' | '-' | '/' | '*' | '=' | ':' | '>' | '<' -> true
     | _ -> false
 
 let is_paren_token c =
@@ -98,8 +102,12 @@ let rec parse ic loc =
                | _ -> ((match b with
                         | "let" -> VarToken
                         | "print" -> PrintToken
+                        | "println" -> PrintLnToken
                         | "if" -> IfToken
                         | "else" -> ElseToken
+                        | "fn" -> FunctionToken
+                        | "true" -> ValueToken (Bool true)
+                        | "false" -> ValueToken (Bool false)
                         | word -> LabelToken word
                        ), chars, String.length b)
            in
@@ -119,6 +127,7 @@ let rec parse ic loc =
                         | "-=" -> InlineOpToken Sub
                         | "/=" -> InlineOpToken Div
                         | "===" -> InlineOpToken Eq
+                        | "=>" -> ArrowToken
                         | op -> raise @@ TokenizationError ("unknown operator `" ^ op ^ "`")
                        ), chars, String.length b) 
            in
@@ -146,9 +155,12 @@ let rec parse ic loc =
             in
             (parse_c (string_to_list line) loc) @ (parse ic { file=loc.file; line = loc.line + 1; col = 1 })
 
+exception DebugException of string
+
 let string_of_token token = 
     match token with
     | PrintToken -> "<print>"
+    | PrintLnToken -> "<println>"
     | OpenParenToken -> "<(>"
     | CloseParenToken -> "<)>"
     | OpenCurlyToken -> "<{>"
@@ -157,6 +169,7 @@ let string_of_token token =
     | ValueToken (String s) -> ("<String \"" ^ s ^ "\">")
     | ValueToken (Int n) -> ("<Int " ^ (string_of_int n) ^ ">")
     | ValueToken (Bool b) -> ("<Int " ^ (string_of_bool b) ^ ">")
+    | ValueToken (Func _) -> raise @@ DebugException "token ValueToken (Func _) should not exist"
     | ValueToken (Null) -> "<Null>"
     | SetToken -> "<set>"
     | OpToken Add -> "<+>"
@@ -172,6 +185,8 @@ let string_of_token token =
     | LabelToken s -> ("<Label " ^ s ^ ">")
     | IfToken -> "<if>"
     | ElseToken -> "<else>"
+    | FunctionToken -> "<function>"
+    | ArrowToken -> "< => >"
 
 
 exception CompilationError of string
@@ -179,22 +194,45 @@ exception CompilationError of string
 type expression =
     | ValueEx of value
     | LabelEx of string
+    | CallEx of int * expression list
     | OpEx of expression * operator * expression
 
-let rec compile_expr tokens vars = 
-    let rec check_var name vars =
-        match vars with
+
+type compile_var_type =
+    | VariableType
+    | FunctionType of int * int
+
+type compile_scope =
+    {
+        vars : (string, compile_var_type) Hashtbl.t;
+    }
+
+let rec range a b =
+    if a > b then []
+             else a :: range (a+1) b
+
+let rec compile_expr tokens scopes = 
+    let rec find_var name scopes =
+        match scopes with
         | [] -> raise @@ CompilationError ("undefined variable `" ^ name ^ "`")
-        | v :: r -> ( match Hashtbl.find_opt v name with
-                      | Some _ -> ()
-                      | None -> check_var name r
+        | v :: r -> ( match Hashtbl.find_opt v.vars name with
+                      | Some t -> t
+                      | None -> find_var name r
                     )
     in
     let (lhs, tokens) = 
         match tokens with
         | (ValueToken v,_) :: r -> (ValueEx v, r)
-        | (LabelToken n,_) :: r -> check_var n vars; (LabelEx n, r)
-        | (OpenParenToken, _) :: r -> (let (e,r) = compile_expr r vars in 
+        | (LabelToken n,_) :: r -> ( match find_var n scopes with
+                                     | VariableType -> (LabelEx n, r)
+                                     | FunctionType (arity,id) -> 
+                                             let (es,r) = List.fold_left (fun (es,r) _ -> let (e,r) = compile_expr r scopes in
+                                                                                  (es @ [e],r)) ([],r) (range 1 arity);
+                                             in
+                                             (CallEx (id,es),r)
+
+                                   )
+        | (OpenParenToken, _) :: r -> (let (e,r) = compile_expr r scopes in 
                                         match (e,r) with
                                         | (e, (CloseParenToken,_) :: r) -> (e,r)
                                         | _ -> raise @@ CompilationError ("missing `)`")
@@ -204,77 +242,105 @@ let rec compile_expr tokens vars =
     in
     match tokens with
     | (OpToken o,_) :: r -> 
-            let (rhs,tokens) = compile_expr r vars in (OpEx (lhs, o, rhs),tokens)
+            let (rhs,tokens) = compile_expr r scopes in (OpEx (lhs, o, rhs),tokens)
     | _ -> (lhs, tokens)
 
 type statement =
     | VarDeclare of string
     | SetVariable of string * expression
     | PrintValue of expression
+    | PrintLnValue of expression
     | ScopeBlock of statement list
+    | FuncDeclare of int * string list * statement list
     | IfStatement of expression * statement list
     | IfElseStatement of expression * statement list * statement list
+
+type func =
+    Function of string list * statement list 
 
 let (@<) a (b,c) =
     (a @ b, c)
 
-type compile_var_type =
-    | Variable
-    | Function of int
 
 let compile tokens =
-    let push_new_scope vars =
-        Hashtbl.create 128 :: vars
+    let current_function_id = ref 0 in
+    let push_new_scope scopes =
+        {vars=Hashtbl.create 128;} :: scopes
     in
-    let rec compile tokens is_global single vars =
+    let push_args_scope args scopes = 
+        let scopes = push_new_scope scopes in
+        let vars = (List.hd scopes).vars in
+        List.iter (fun arg -> Hashtbl.add vars arg VariableType) args;
+        Hashtbl.add vars "__return" VariableType;
+        scopes
+    in
+    let rec compile tokens is_global single scopes =
        let compile_tail rst =
            if single   then ([],rst)
-                       else compile rst is_global single vars
+                       else compile rst is_global single scopes
        in
        let define_var name typ =
-           let vars = List.hd vars in
+           let vars = (List.hd scopes).vars in
            match Hashtbl.find_opt vars name with
            | Some _ -> raise @@ CompilationError ("redeclaration of `" ^ name ^ "`")
            | None -> Hashtbl.add vars name typ
        in
-       let rec check_var name vars =
-           match vars with
+       let rec check_var name scopes =
+           match scopes with
            | [] -> raise @@ CompilationError ("undefined variable `" ^ name ^ "`")
-           | v :: r -> ( match Hashtbl.find_opt v name with
+           | v :: r -> ( match Hashtbl.find_opt v.vars name with
                          | Some _ -> ()
                          | None -> check_var name r
                        )
+       in
+       let rec compile_function_args tokens =
+           match tokens with
+           | [] -> raise @@ CompilationError "found eof before `=>`"
+           | (LabelToken name, _) :: rst -> [name] @< compile_function_args rst
+           | (ArrowToken,_) :: rst -> ([],rst)
+           | (t,l) :: rst ->
+               raise @@ CompilationError ("unexpected token: " ^ string_of_location l ^ " " ^ string_of_token t)
        in
        match tokens with
        | [] when is_global -> ([],[])
        | [] -> raise @@ CompilationError ("scope wasn't closed before eof")
        | (CloseCurlyToken,l) :: rst when not is_global ->
                ([],rst)
+       | (VarToken,l) :: (LabelToken name,_) :: (SetToken,_) :: (FunctionToken,_) :: rst -> 
+               let (args,rst) = compile_function_args rst in
+               current_function_id := !current_function_id + 1;
+               let id = !current_function_id in
+               define_var name @@ FunctionType (List.length args, id);
+               let (sts,rst) = compile rst false true (scopes |> push_args_scope args |> push_new_scope) in
+               [FuncDeclare (id,args,sts);VarDeclare name; SetVariable (name,ValueEx (Func id))] @< compile_tail rst;
        | (VarToken,l) :: (LabelToken name,_) :: (SetToken,_) :: rst -> 
-               define_var name Variable;
-               let (e,rst) = compile_expr rst vars in
+               define_var name VariableType;
+               let (e,rst) = compile_expr rst scopes in
                    [VarDeclare name; SetVariable (name,e)] @< compile_tail rst;
        | (VarToken,l) :: (LabelToken name,_) :: rst -> 
-               define_var name Variable;
+               define_var name VariableType;
                    [VarDeclare name] @< compile_tail rst
        | (LabelToken name,l) :: (SetToken,_)  :: rst -> 
-               check_var name vars;
-               let (e,rst) = compile_expr rst vars in
+               check_var name scopes;
+               let (e,rst) = compile_expr rst scopes in
                    [SetVariable (name,e)] @< compile_tail rst
        | (LabelToken n1,l) :: (InlineOpToken o,_) :: rst -> 
-               let (e,rst) = compile_expr rst vars in
+               let (e,rst) = compile_expr rst scopes in
                    [SetVariable (n1,OpEx(LabelEx n1,o,e))] @< compile_tail rst
        | (PrintToken,l)  :: rst -> 
-               let (e,rst) = compile_expr rst vars in
+               let (e,rst) = compile_expr rst scopes in
                    [PrintValue e] @< compile_tail rst
+       | (PrintLnToken,l)  :: rst -> 
+               let (e,rst) = compile_expr rst scopes in
+                   [PrintLnValue e] @< compile_tail rst
        | (OpenCurlyToken,l) :: rst ->
-               let (sts,rst) = compile rst false false (push_new_scope vars) in
+               let (sts,rst) = compile rst false false (push_new_scope scopes) in
                    [ScopeBlock sts] @< compile_tail rst
        | (IfToken,l) :: rst ->
-               let (e,rst) = compile_expr rst vars in
-               let (sts,rst) = compile rst false true (push_new_scope vars) in
+               let (e,rst) = compile_expr rst scopes in
+               let (sts,rst) = compile rst false true (push_new_scope scopes) in
                (   match rst with
-                   | (ElseToken,_) :: rst -> ( let (ests,rst) = compile rst false true (push_new_scope vars) in
+                   | (ElseToken,_) :: rst -> ( let (ests,rst) = compile rst false true (push_new_scope scopes) in
                                                [IfElseStatement (e,sts,ests)] @< compile_tail rst
                                              )
                    | _ -> [IfStatement (e,sts)] @< compile_tail rst
@@ -287,30 +353,55 @@ let compile tokens =
 
 exception EvaluationException of string
 
-let rec evaluate program vars =
-    let vars = Hashtbl.create 128 :: vars in
-    let rec get_var name vars =
-        match vars with
-            | v :: r -> ( match Hashtbl.find_opt v name with
-                          | Some v -> v 
-                          | None -> get_var name r
-                        )
-            | [] -> raise @@ EvaluationException ("unreachable! : undeclared variable `" ^ name ^ "`")
-        in
+type evaluation_scope =
+    { 
+        vars : (string, value) Hashtbl.t list;
+        funcs : (int, func) Hashtbl.t;
+    }
 
-    let declare_var name = 
-        let vars = List.hd vars in
+let rec evaluate program scopes =
+    let scopes = {vars=Hashtbl.create 128 :: scopes.vars; funcs=scopes.funcs}  in
+    let get_var name scopes =
+        let vars = scopes.vars in
+        let rec get_var name vars =
+            match vars with
+                | v :: r -> ( match Hashtbl.find_opt v name with
+                              | Some v -> v 
+                              | None -> get_var name r
+                            )
+                | [] -> raise @@ EvaluationException ("unreachable! : undeclared variable `" ^ name ^ "`")
+        in
+        get_var name vars
+    in
+
+    let get_func id scopes =
+        match Hashtbl.find_opt scopes.funcs id with
+        | Some v -> v 
+        | None -> raise @@ EvaluationException ("unreachable! : undeclared function #" ^ string_of_int id)
+    in
+
+    let declare_var name scopes = 
+        let vars = (List.hd scopes.vars) in
             Hashtbl.add vars name Null 
         in
 
-    let rec set_var name va vars =  
-        match vars with
-            | v :: r -> ( match Hashtbl.find_opt v name with
-                          | Some _ ->  Hashtbl.replace v name va
-                          | None -> set_var name va r
-                        )
-            | [] -> raise @@ EvaluationException ("unreachable! : undeclared variable `" ^ name ^ "`")
+    let declare_func id args sts = 
+        let funcs = scopes.funcs in
+            Hashtbl.add funcs id @@ Function (args,sts) 
         in
+
+    let rec set_var name va scopes =  
+        let vars = scopes.vars in
+        let rec set_var name va vars =  
+            match vars with
+                | v :: r -> ( match Hashtbl.find_opt v name with
+                              | Some _ -> Hashtbl.replace v name va
+                              | None -> set_var name va r
+                            )
+                | [] -> raise @@ EvaluationException ("unreachable! : undeclared variable `" ^ name ^ "`")
+            in
+            set_var name va vars
+    in
 
     let add_values v1 v2 = 
         match (v1,v2) with
@@ -349,16 +440,23 @@ let rec evaluate program vars =
 
     let print_value v = 
         match v with
-        | Null -> print_string "NULL"; print_newline ()
-        | Int v -> print_int v; print_newline ()
-        | String  v -> print_string v; print_newline ()
-        | Bool  b -> print_string @@ string_of_bool b; print_newline ()
+        | Null -> print_string "NULL"
+        | Int v -> print_int v
+        | String  v -> print_string v
+        | Bool  b -> print_string @@ string_of_bool b
+        | Func _ -> print_string "<function>"
         in
 
     let rec eval_expr expr =
         match expr with
         | ValueEx v -> v
-        | LabelEx n -> get_var n vars
+        | LabelEx n -> get_var n scopes
+        | CallEx (id,args) -> let scopes = {vars=Hashtbl.create 128 :: scopes.vars; funcs=scopes.funcs}  in
+                              let Function (names, sts) = get_func id scopes in
+                                  declare_var "__return" scopes;
+                                  List.iter2 (fun name e -> declare_var name scopes; set_var name (eval_expr e) scopes) names args;
+                                  evaluate sts scopes;
+                                  get_var "__return" scopes
         | OpEx (l,o,r) ->
                 match o with
                 | Add -> add_values (eval_expr l) (eval_expr r)
@@ -370,21 +468,23 @@ let rec evaluate program vars =
 
     let eval stat = 
         match stat with
-        | VarDeclare name -> declare_var name
-        | SetVariable (name, e) -> set_var name (eval_expr e) vars
+        | VarDeclare name -> declare_var name scopes
+        | SetVariable (name, e) -> set_var name (eval_expr e) scopes
         | PrintValue e -> print_value (eval_expr e)
-        | ScopeBlock sts -> evaluate sts vars
+        | PrintLnValue e -> print_value (eval_expr e); print_newline ()
+        | ScopeBlock sts -> evaluate sts scopes
         | IfStatement (e,sts) -> (  match eval_expr e with
-                                    | Bool true -> evaluate sts vars
+                                    | Bool true -> evaluate sts scopes
                                     | Bool false -> ()
                                     | _ -> raise @@ EvaluationException "expected bool value in `if`"
                                  )   
         | IfElseStatement (e,sts,ests) -> 
                                  (  match eval_expr e with
-                                    | Bool true -> evaluate sts vars
-                                    | Bool false -> evaluate ests vars
+                                    | Bool true -> evaluate sts scopes
+                                    | Bool false -> evaluate ests scopes
                                     | _ -> raise @@ EvaluationException "expected bool value in `if`"
                                  )
+        | FuncDeclare (id,args,sts) -> declare_func id args sts
         in
 
     List.iter eval program 
@@ -394,8 +494,8 @@ let rec evaluate program vars =
 let () =
     let ic = open_in ifile in
     let tokens = parse ic {file = ifile; line = 1; col = 1} in
-    List.iter (fun (token,loc) -> print_endline @@ string_of_location loc ^ ": " ^ string_of_token token ) tokens;
+    (* List.iter (fun (token,loc) -> print_endline @@ string_of_location loc ^ ": " ^ string_of_token token ) tokens; *)
     close_in ic;
     let program = compile tokens in
-    evaluate program []
+    evaluate program {vars=[]; funcs=Hashtbl.create 128;}
 
