@@ -98,6 +98,8 @@ fn itos n => {
 if (itos stoi sth) == sth 
 	$ println "stoi and itos it works!"
 
+$ println "========="
+
 // fizzbuzz
 
 fn fizzbuzz n => {

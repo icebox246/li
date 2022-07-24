@@ -9,7 +9,7 @@ Simple language written in ocaml.
 ## Get started
 
 ```console
-ocaml li.ml
+ocaml li.ml test.li
 ```
 
 <!-- TODOS -->

@@ -1,4 +1,3 @@
-let ifile = "./test.li"
 
 let string_of_char c =
     String.make 1 c
@@ -571,7 +570,7 @@ let rec evaluate program scopes =
 
 (*====================*)   
 
-let () =
+let run_file ifile =
     let ic = open_in ifile in
     let tokens = parse ic {file = ifile; line = 1; col = 1} in
     (* List.iter (fun (token,loc) -> print_endline @@ string_of_location loc ^ ": " ^ string_of_token token ) tokens; *)
@@ -585,4 +584,10 @@ let () =
                 ] in
     let program = compile tokens builtins in
     evaluate program {vars=[]; funcs=Hashtbl.create 128;}
+
+let () =
+    if Array.length Sys.argv < 2 
+        then (print_endline ("Usage: " ^ Sys.argv.(0) ^ " <file>");
+             exit 1)
+        else run_file Sys.argv.(1)
 
