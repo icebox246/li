@@ -27,6 +27,10 @@ type operator =
     | Div
     | Eq
     | NotEq
+    | Lt
+    | Gt
+    | LtEq
+    | GtEq
 
 type token =
     | OpenParenToken
@@ -122,6 +126,10 @@ let rec parse ic loc =
                         | "*" -> OpToken Mult
                         | "-" -> OpToken Sub
                         | "/" -> OpToken Div
+                        | "<" -> OpToken Lt
+                        | ">" -> OpToken Gt
+                        | "<=" -> OpToken LtEq
+                        | ">=" -> OpToken GtEq
                         | "==" -> OpToken Eq
                         | "!=" -> OpToken NotEq
                         | "+=" -> InlineOpToken Add
@@ -181,12 +189,17 @@ let string_of_token token =
     | OpToken Div -> "</>"
     | OpToken Eq -> "<==>"
     | OpToken NotEq -> "<!=>"
+    | OpToken Lt -> "< < >"
+    | OpToken Gt -> "< > >"
+    | OpToken LtEq -> "< <= >"
+    | OpToken GtEq -> "< >= >"
     | InlineOpToken Add -> "<+=>"
     | InlineOpToken Sub -> "<-=>"
     | InlineOpToken Mult -> "<*=>"
     | InlineOpToken Div -> "</=>"
     | InlineOpToken Eq -> "<===>"
     | InlineOpToken NotEq -> "<!==>"
+    | InlineOpToken _ -> raise @@ DebugException "unsupported"
     | LabelToken s -> ("<Label " ^ s ^ ">")
     | IfToken -> "<if>"
     | ElseToken -> "<else>"
@@ -462,7 +475,26 @@ let rec evaluate program scopes =
         | Int v -> print_int v
         | String  v -> print_string v
         | Bool  b -> print_string @@ string_of_bool b
-        in
+    in
+
+    let lt_values v1 v2 =
+        match (v1,v2) with
+        | (Int v1, Int v2) ->  Bool (v1 < v2)
+        | _ -> raise @@ EvaluationException "mismatch types in `lt`"
+    in
+
+    let gt_values v1 v2 =
+        match (v1,v2) with
+        | (Int v1, Int v2) ->  Bool (v1 > v2)
+        | _ -> raise @@ EvaluationException "mismatch types in `gt`"
+    in
+
+    let not_value v = 
+        match v with
+        | Bool true -> Bool false
+        | Bool false -> Bool true
+        | _ -> raise @@ EvaluationException "mismatch types in `not`"
+    in
 
     let rec eval_expr expr =
         match expr with
@@ -482,7 +514,11 @@ let rec evaluate program scopes =
                 | Div -> div_values (eval_expr l) (eval_expr r)
                 | Eq -> eq_values (eval_expr l) (eval_expr r)
                 | NotEq -> not_eq_values (eval_expr l) (eval_expr r)
-        in
+                | Lt -> lt_values (eval_expr l) (eval_expr r)
+                | Gt -> gt_values (eval_expr l) (eval_expr r)
+                | LtEq -> not_value @@ gt_values (eval_expr l) (eval_expr r)
+                | GtEq -> not_value @@ lt_values (eval_expr l) (eval_expr r)
+    in
 
     let eval stat = 
         match stat with

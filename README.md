@@ -31,8 +31,9 @@ ocaml li.ml
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm
 
-**DONE (11):**
+**DONE (12):**
 
+- [x] add operators for int comparison
 - [x] change function definition syntax to be different than variables
 - [x] add functions
 - [x] add procedures
