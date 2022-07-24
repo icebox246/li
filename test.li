@@ -1,5 +1,7 @@
 println "Hello, li!"
 
+println "========="
+
 let pow := fn a b => {
 	if b == 0 __return := 1
 	else {
@@ -7,9 +9,19 @@ let pow := fn a b => {
 	}
 }
 
-println "========="
-
 print "3 ^ 5 = "
 println pow 3 5
 
 println "========="
+
+let print_range := fn a b => {
+	if (a-1) == b {}
+	else {
+		print a	
+		if a != b print ", "
+		$print_range (a+1) b
+	}
+}
+
+$print_range 1 3
+println ""

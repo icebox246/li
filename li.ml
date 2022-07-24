@@ -27,6 +27,7 @@ type operator =
     | Sub
     | Div
     | Eq
+    | NotEq
 
 type token =
     | OpenParenToken
@@ -45,6 +46,7 @@ type token =
     | ElseToken
     | FunctionToken
     | ArrowToken
+    | DollarToken
 
 
 exception TokenizationError of string
@@ -64,7 +66,7 @@ let is_whitespace c =
 
 let is_op_char c = 
     match c with
-    | '+' | '-' | '/' | '*' | '=' | ':' | '>' | '<' -> true
+    | '+' | '-' | '/' | '*' | '=' | ':' | '>' | '<' | '$' | '!' -> true
     | _ -> false
 
 let is_paren_token c =
@@ -122,12 +124,15 @@ let rec parse ic loc =
                         | "-" -> OpToken Sub
                         | "/" -> OpToken Div
                         | "==" -> OpToken Eq
+                        | "!=" -> OpToken NotEq
                         | "+=" -> InlineOpToken Add
                         | "*=" -> InlineOpToken Mult
                         | "-=" -> InlineOpToken Sub
                         | "/=" -> InlineOpToken Div
                         | "===" -> InlineOpToken Eq
+                        | "!==" -> InlineOpToken NotEq
                         | "=>" -> ArrowToken
+                        | "$" -> DollarToken
                         | op -> raise @@ TokenizationError ("unknown operator `" ^ op ^ "`")
                        ), chars, String.length b) 
            in
@@ -177,16 +182,19 @@ let string_of_token token =
     | OpToken Mult -> "<*>"
     | OpToken Div -> "</>"
     | OpToken Eq -> "<==>"
+    | OpToken NotEq -> "<!=>"
     | InlineOpToken Add -> "<+=>"
     | InlineOpToken Sub -> "<-=>"
     | InlineOpToken Mult -> "<*=>"
     | InlineOpToken Div -> "</=>"
     | InlineOpToken Eq -> "<===>"
+    | InlineOpToken NotEq -> "<!==>"
     | LabelToken s -> ("<Label " ^ s ^ ">")
     | IfToken -> "<if>"
     | ElseToken -> "<else>"
     | FunctionToken -> "<function>"
     | ArrowToken -> "< => >"
+    | DollarToken -> "< $ >"
 
 
 exception CompilationError of string
@@ -254,6 +262,7 @@ type statement =
     | FuncDeclare of int * string list * statement list
     | IfStatement of expression * statement list
     | IfElseStatement of expression * statement list * statement list
+    | LonelyExpression of expression
 
 type func =
     Function of string list * statement list 
@@ -299,7 +308,7 @@ let compile tokens =
            | (LabelToken name, _) :: rst -> [name] @< compile_function_args rst
            | (ArrowToken,_) :: rst -> ([],rst)
            | (t,l) :: rst ->
-               raise @@ CompilationError ("unexpected token: " ^ string_of_location l ^ " " ^ string_of_token t)
+               raise @@ CompilationError ("unexpected token in args: " ^ string_of_location l ^ " " ^ string_of_token t)
        in
        match tokens with
        | [] when is_global -> ([],[])
@@ -345,9 +354,12 @@ let compile tokens =
                                              )
                    | _ -> [IfStatement (e,sts)] @< compile_tail rst
                )
+       | (DollarToken,l)  :: rst -> 
+               let (e,rst) = compile_expr rst scopes in
+                   [LonelyExpression e] @< compile_tail rst
        | (t,l) :: _ -> 
                raise @@ 
-                   CompilationError ("unexpected token: " ^ string_of_location l ^ " " ^ string_of_token t)
+                   CompilationError ("unexpected token while compiling statements: " ^ string_of_location l ^ " " ^ string_of_token t)
     in
     let (a,_) = compile tokens true false (push_new_scope []) in a
 
@@ -437,6 +449,14 @@ let rec evaluate program scopes =
         | _ -> raise @@ EvaluationException "mismatch types in `eq`"
         in
 
+    let not_eq_values v1 v2 = 
+        match (v1,v2) with
+        | (Int v1, Int v2) ->  Bool (v1 != v2)
+        | (String v1, String v2) ->  Bool (v1 != v2)
+        | (Bool v1, Bool v2) ->  Bool (v1 != v2)
+        | _ -> raise @@ EvaluationException "mismatch types in `eq`"
+        in
+
 
     let print_value v = 
         match v with
@@ -464,6 +484,7 @@ let rec evaluate program scopes =
                 | Sub -> sub_values (eval_expr l) (eval_expr r)
                 | Div -> div_values (eval_expr l) (eval_expr r)
                 | Eq -> eq_values (eval_expr l) (eval_expr r)
+                | NotEq -> not_eq_values (eval_expr l) (eval_expr r)
         in
 
     let eval stat = 
@@ -485,6 +506,7 @@ let rec evaluate program scopes =
                                     | _ -> raise @@ EvaluationException "expected bool value in `if`"
                                  )
         | FuncDeclare (id,args,sts) -> declare_func id args sts
+        | LonelyExpression e -> let _ = eval_expr e in ()
         in
 
     List.iter eval program 
