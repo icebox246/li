@@ -14,14 +14,14 @@ ocaml li.ml
 
 <!-- TODOS -->
 
-**TODO (3):**
+**TODO (2):**
 
-- [ ] add comments
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm
 
-**DONE (15):**
+**DONE (16):**
 
+- [x] add comments
 - [x] add syntax highlighting for vim
 - [x] add builtins for string manipulation
 - [x] create function like abstraction for builtins
