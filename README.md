@@ -25,13 +25,15 @@ ocaml li.ml
 
 <!-- TODOS -->
 
-**TODO (2):**
+**TODO (3):**
 
+- [ ] add syntax highlighting for vim
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm
 
-**DONE (10):**
+**DONE (11):**
 
+- [x] change function definition syntax to be different than variables
 - [x] add functions
 - [x] add procedures
 - [x] add custom tokenization instead of words

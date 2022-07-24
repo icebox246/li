@@ -19,7 +19,6 @@ type value =
     | Int of int
     | String of string
     | Bool of bool
-    | Func of int
 
 type operator =
     | Add
@@ -174,7 +173,6 @@ let string_of_token token =
     | ValueToken (String s) -> ("<String \"" ^ s ^ "\">")
     | ValueToken (Int n) -> ("<Int " ^ (string_of_int n) ^ ">")
     | ValueToken (Bool b) -> ("<Int " ^ (string_of_bool b) ^ ">")
-    | ValueToken (Func _) -> raise @@ DebugException "token ValueToken (Func _) should not exist"
     | ValueToken (Null) -> "<Null>"
     | SetToken -> "<set>"
     | OpToken Add -> "<+>"
@@ -315,13 +313,6 @@ let compile tokens =
        | [] -> raise @@ CompilationError ("scope wasn't closed before eof")
        | (CloseCurlyToken,l) :: rst when not is_global ->
                ([],rst)
-       | (VarToken,l) :: (LabelToken name,_) :: (SetToken,_) :: (FunctionToken,_) :: rst -> 
-               let (args,rst) = compile_function_args rst in
-               current_function_id := !current_function_id + 1;
-               let id = !current_function_id in
-               define_var name @@ FunctionType (List.length args, id);
-               let (sts,rst) = compile rst false true (scopes |> push_args_scope args |> push_new_scope) in
-               [FuncDeclare (id,args,sts);VarDeclare name; SetVariable (name,ValueEx (Func id))] @< compile_tail rst;
        | (VarToken,l) :: (LabelToken name,_) :: (SetToken,_) :: rst -> 
                define_var name VariableType;
                let (e,rst) = compile_expr rst scopes in
@@ -329,6 +320,13 @@ let compile tokens =
        | (VarToken,l) :: (LabelToken name,_) :: rst -> 
                define_var name VariableType;
                    [VarDeclare name] @< compile_tail rst
+       | (FunctionToken,l) :: (LabelToken name,_) :: rst -> 
+               let (args,rst) = compile_function_args rst in
+               current_function_id := !current_function_id + 1;
+               let id = !current_function_id in
+               define_var name @@ FunctionType (List.length args, id);
+               let (sts,rst) = compile rst false true (scopes |> push_args_scope args |> push_new_scope) in
+               [FuncDeclare (id,args,sts); ] @< compile_tail rst;
        | (LabelToken name,l) :: (SetToken,_)  :: rst -> 
                check_var name scopes;
                let (e,rst) = compile_expr rst scopes in
@@ -464,7 +462,6 @@ let rec evaluate program scopes =
         | Int v -> print_int v
         | String  v -> print_string v
         | Bool  b -> print_string @@ string_of_bool b
-        | Func _ -> print_string "<function>"
         in
 
     let rec eval_expr expr =
