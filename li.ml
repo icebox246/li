@@ -515,6 +515,7 @@ let rec evaluate program scopes =
                                             | [Int c] -> String (String.make 1 (char_of_int c))
                                             | _ -> raise @@ EvaluationException ("mismatch types in `string_of_char")
                                           )
+        | BuiltIn ("read_line",0) -> String (input_line stdin)
         | BuiltIn (name,arity) -> raise @@ EvaluationException ("not implemented builtin " ^ name ^ "/" ^ string_of_int arity)
     in
 
@@ -581,6 +582,7 @@ let run_file ifile =
                 BuiltIn ("substr",3);
                 BuiltIn ("char_at",2);
                 BuiltIn ("string_of_char",1);
+                BuiltIn ("read_line",0);
                 ] in
     let program = compile tokens builtins in
     evaluate program {vars=[]; funcs=Hashtbl.create 128;}

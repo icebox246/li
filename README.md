@@ -14,13 +14,15 @@ ocaml li.ml test.li
 
 <!-- TODOS -->
 
-**TODO (2):**
+**TODO (3):**
 
+- [ ] add builtin to read a file
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm
 
-**DONE (18):**
+**DONE (19):**
 
+- [x] add builtin to read line from stdin
 - [x] add character to string conversion
 - [x] add character literals
 - [x] add comments

@@ -14,7 +14,7 @@ highligh link liKeyword Keyword
 syn keyword liBoolean true false
 highligh link liBoolean Boolean
 
-syn keyword liBuiltin print println substr char_at string_of_char
+syn keyword liBuiltin print println substr char_at string_of_char read_line
 highligh link liBuiltin Function
 
 syn match liOperator "\v:\="
