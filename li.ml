@@ -41,8 +41,6 @@ type token =
     | SetToken
     | OpToken of operator
     | InlineOpToken of operator
-    | PrintToken
-    | PrintLnToken
     | ValueToken of value
     | LabelToken of string
     | IfToken
@@ -106,8 +104,8 @@ let rec parse ic loc =
                        parse_word (b ^ string_of_char c) r
                | _ -> ((match b with
                         | "let" -> VarToken
-                        | "print" -> PrintToken
-                        | "println" -> PrintLnToken
+                        (* | "print" -> PrintToken *)
+                        (* | "println" -> PrintLnToken *)
                         | "if" -> IfToken
                         | "else" -> ElseToken
                         | "fn" -> FunctionToken
@@ -171,8 +169,6 @@ exception DebugException of string
 
 let string_of_token token = 
     match token with
-    | PrintToken -> "<print>"
-    | PrintLnToken -> "<println>"
     | OpenParenToken -> "<(>"
     | CloseParenToken -> "<)>"
     | OpenCurlyToken -> "<{>"
@@ -210,16 +206,20 @@ let string_of_token token =
 
 exception CompilationError of string
 
+type builtin =
+    BuiltIn of string * int
+
 type expression =
     | ValueEx of value
     | LabelEx of string
     | CallEx of int * expression list
+    | CallBuiltInEx of builtin * expression list
     | OpEx of expression * operator * expression
-
 
 type compile_var_type =
     | VariableType
     | FunctionType of int * int
+    | BuiltInType of builtin
 
 type compile_scope =
     {
@@ -249,6 +249,12 @@ let rec compile_expr tokens scopes =
                                                                                   (es @ [e],r)) ([],r) (range 1 arity);
                                              in
                                              (CallEx (id,es),r)
+                                     | BuiltInType b -> 
+                                             let BuiltIn (_,arity) = b in
+                                             let (es,r) = List.fold_left (fun (es,r) _ -> let (e,r) = compile_expr r scopes in
+                                                                                  (es @ [e],r)) ([],r) (range 1 arity);
+                                             in
+                                             (CallBuiltInEx (b,es),r)
 
                                    )
         | (OpenParenToken, _) :: r -> (let (e,r) = compile_expr r scopes in 
@@ -267,8 +273,6 @@ let rec compile_expr tokens scopes =
 type statement =
     | VarDeclare of string
     | SetVariable of string * expression
-    | PrintValue of expression
-    | PrintLnValue of expression
     | ScopeBlock of statement list
     | FuncDeclare of int * string list * statement list
     | IfStatement of expression * statement list
@@ -282,7 +286,7 @@ let (@<) a (b,c) =
     (a @ b, c)
 
 
-let compile tokens =
+let compile tokens builtins =
     let current_function_id = ref 0 in
     let push_new_scope scopes =
         {vars=Hashtbl.create 128;} :: scopes
@@ -347,12 +351,6 @@ let compile tokens =
        | (LabelToken n1,l) :: (InlineOpToken o,_) :: rst -> 
                let (e,rst) = compile_expr rst scopes in
                    [SetVariable (n1,OpEx(LabelEx n1,o,e))] @< compile_tail rst
-       | (PrintToken,l)  :: rst -> 
-               let (e,rst) = compile_expr rst scopes in
-                   [PrintValue e] @< compile_tail rst
-       | (PrintLnToken,l)  :: rst -> 
-               let (e,rst) = compile_expr rst scopes in
-                   [PrintLnValue e] @< compile_tail rst
        | (OpenCurlyToken,l) :: rst ->
                let (sts,rst) = compile rst false false (push_new_scope scopes) in
                    [ScopeBlock sts] @< compile_tail rst
@@ -372,7 +370,9 @@ let compile tokens =
                raise @@ 
                    CompilationError ("unexpected token while compiling statements: " ^ string_of_location l ^ " " ^ string_of_token t)
     in
-    let (a,_) = compile tokens true false (push_new_scope []) in a
+    let base_scope = { vars=Hashtbl.create 128 } in
+    List.iter (fun b -> let BuiltIn (name,_) = b in Hashtbl.add base_scope.vars name @@ BuiltInType b) builtins;
+    let (a,_) = compile tokens true false (push_new_scope [base_scope]) in a
 
 exception EvaluationException of string
 
@@ -496,6 +496,13 @@ let rec evaluate program scopes =
         | _ -> raise @@ EvaluationException "mismatch types in `not`"
     in
 
+    let exec_builtin args b = 
+        match b with
+        | BuiltIn ("print",1) -> print_value (List.hd args); Null
+        | BuiltIn ("println",1) -> print_value (List.hd args); print_newline(); Null
+        | BuiltIn (name,arity) -> raise @@ EvaluationException ("not implemented builtin " ^ name ^ "/" ^ string_of_int arity)
+    in
+
     let rec eval_expr expr =
         match expr with
         | ValueEx v -> v
@@ -506,6 +513,8 @@ let rec evaluate program scopes =
                                   List.iter2 (fun name e -> declare_var name scopes; set_var name (eval_expr e) scopes) names args;
                                   evaluate sts scopes;
                                   get_var "__return" scopes
+        | CallBuiltInEx (b,args) -> let args = List.map eval_expr args in
+                                    exec_builtin args b 
         | OpEx (l,o,r) ->
                 match o with
                 | Add -> add_values (eval_expr l) (eval_expr r)
@@ -524,8 +533,8 @@ let rec evaluate program scopes =
         match stat with
         | VarDeclare name -> declare_var name scopes
         | SetVariable (name, e) -> set_var name (eval_expr e) scopes
-        | PrintValue e -> print_value (eval_expr e)
-        | PrintLnValue e -> print_value (eval_expr e); print_newline ()
+        (* | PrintValue e -> print_value (eval_expr e) *)
+        (* | PrintLnValue e -> print_value (eval_expr e); print_newline () *)
         | ScopeBlock sts -> evaluate sts scopes
         | IfStatement (e,sts) -> (  match eval_expr e with
                                     | Bool true -> evaluate sts scopes
@@ -551,6 +560,10 @@ let () =
     let tokens = parse ic {file = ifile; line = 1; col = 1} in
     (* List.iter (fun (token,loc) -> print_endline @@ string_of_location loc ^ ": " ^ string_of_token token ) tokens; *)
     close_in ic;
-    let program = compile tokens in
+    let builtins = [
+                BuiltIn ("print",1);
+                BuiltIn ("println",1);
+                ] in
+    let program = compile tokens builtins in
     evaluate program {vars=[]; funcs=Hashtbl.create 128;}
 
