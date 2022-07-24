@@ -97,3 +97,28 @@ fn itos n => {
 
 if (itos stoi sth) == sth 
 	$ println "stoi and itos it works!"
+
+// fizzbuzz
+
+fn fizzbuzz n => {
+	fn __fizzbuzz i =>
+		if i <= n {
+			if (mod i 15) == 0 
+				$ print "FizzBuzz"
+			else if (mod i 3) == 0
+				$ print "Fizz"
+			else if (mod i 5) == 0
+				$ print "Buzz"
+			else
+				$ print i
+
+			if i < n
+				$ print ", "
+
+			$ __fizzbuzz i + 1
+		}
+	$ __fizzbuzz 1
+}
+
+$ fizzbuzz 20
+$ println ""
