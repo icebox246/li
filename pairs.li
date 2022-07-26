@@ -1,0 +1,41 @@
+$ println "Hello, pairs!"
+
+// declare a pair
+let p := 1, 2
+
+// print a pair
+$ println p
+$ println fst p // print first value from pair
+$ println snd p // print first value from pair
+
+// declare a simple triple
+let t := 1, 2, 3
+
+// print a triple
+$ println t
+
+// declare a simple list
+let list := 1, 2, 3, 4, 5, null
+
+fn print_list lst => {
+	$ print "[ "
+	fn __print_list lst => {
+		$ print fst lst
+		let tl := snd lst
+		if tl != null {
+			$ print ", "
+			$ __print_list tl
+		}
+	}
+	$ __print_list lst
+	$ print " ]"
+}
+
+// print a list
+$ print "list:        "
+$ println list
+
+// pretty print a list
+$ print "pretty list: "
+$ print_list list
+$ println ""

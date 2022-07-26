@@ -11,10 +11,13 @@ highligh link liNumber Number
 syn keyword liKeyword __return if else fn let
 highligh link liKeyword Keyword
 
-syn keyword liBoolean true false
+syn keyword liBoolean true false 
 highligh link liBoolean Boolean
 
-syn keyword liBuiltin print println substr char_at string_of_char read_line
+syn keyword liConstant null
+highligh link liConstant Constant
+
+syn keyword liBuiltin print println substr char_at string_of_char read_line fst snd
 highligh link liBuiltin Function
 
 syn match liOperator "\v:\="

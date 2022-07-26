@@ -18,6 +18,7 @@ type value =
     | Int of int
     | String of string
     | Bool of bool
+    | Pair of value * value
 
 type operator =
     | Add
@@ -30,6 +31,7 @@ type operator =
     | Gt
     | LtEq
     | GtEq
+    | Pairify
 
 type token =
     | OpenParenToken
@@ -47,6 +49,7 @@ type token =
     | FunctionToken
     | ArrowToken
     | DollarToken
+    | NullToken
 
 
 exception TokenizationError of string
@@ -66,7 +69,7 @@ let is_whitespace c =
 
 let is_op_char c = 
     match c with
-    | '+' | '-' | '/' | '*' | '=' | ':' | '>' | '<' | '$' | '!' -> true
+    | '+' | '-' | '/' | '*' | '=' | ':' | '>' | '<' | '$' | '!' | ',' -> true
     | _ -> false
 
 let is_paren_token c =
@@ -110,6 +113,7 @@ let rec parse ic loc =
                         | "fn" -> FunctionToken
                         | "true" -> ValueToken (Bool true)
                         | "false" -> ValueToken (Bool false)
+                        | "null" -> ValueToken (Null)
                         | word -> LabelToken word
                        ), chars, String.length b)
            in
@@ -128,6 +132,7 @@ let rec parse ic loc =
                         | "<=" -> OpToken LtEq
                         | ">=" -> OpToken GtEq
                         | "==" -> OpToken Eq
+                        | "," -> OpToken Pairify
                         | "!=" -> OpToken NotEq
                         | "+=" -> InlineOpToken Add
                         | "*=" -> InlineOpToken Mult
@@ -180,6 +185,7 @@ let string_of_token token =
     | ValueToken (Int n) -> ("<Int " ^ (string_of_int n) ^ ">")
     | ValueToken (Bool b) -> ("<Int " ^ (string_of_bool b) ^ ">")
     | ValueToken (Null) -> "<Null>"
+    | ValueToken (Pair (_,_)) -> raise @@ DebugException "unsupported"
     | SetToken -> "<set>"
     | OpToken Add -> "<+>"
     | OpToken Sub -> "<->"
@@ -191,6 +197,7 @@ let string_of_token token =
     | OpToken Gt -> "< > >"
     | OpToken LtEq -> "< <= >"
     | OpToken GtEq -> "< >= >"
+    | OpToken Pairify -> "< , >"
     | InlineOpToken Add -> "<+=>"
     | InlineOpToken Sub -> "<-=>"
     | InlineOpToken Mult -> "<*=>"
@@ -204,6 +211,7 @@ let string_of_token token =
     | FunctionToken -> "<function>"
     | ArrowToken -> "< => >"
     | DollarToken -> "< $ >"
+    | NullToken -> "< null >"
 
 
 exception CompilationError of string
@@ -459,6 +467,7 @@ let rec evaluate program scopes =
         | (Int v1, Int v2) ->  Bool (v1 = v2)
         | (String v1, String v2) ->  Bool (v1 = v2)
         | (Bool v1, Bool v2) ->  Bool (v1 = v2)
+        | (Null, Null) ->  Bool true
         | _ -> raise @@ EvaluationException "mismatch types in `eq`"
         in
 
@@ -467,16 +476,18 @@ let rec evaluate program scopes =
         | (Int v1, Int v2) ->  Bool (v1 != v2)
         | (String v1, String v2) ->  Bool (v1 != v2)
         | (Bool v1, Bool v2) ->  Bool (v1 != v2)
-        | _ -> raise @@ EvaluationException "mismatch types in `eq`"
-        in
+        | (Null, Null) ->  Bool false
+        | _ -> Bool true
+    in
 
 
-    let print_value v = 
+    let rec print_value v = 
         match v with
         | Null -> print_string "NULL"
         | Int v -> print_int v
         | String  v -> print_string v
         | Bool  b -> print_string @@ string_of_bool b
+        | Pair (v1,v2) -> print_string "("; print_value v1; print_string ", "; print_value v2; print_string ")"
     in
 
     let lt_values v1 v2 =
@@ -489,6 +500,10 @@ let rec evaluate program scopes =
         match (v1,v2) with
         | (Int v1, Int v2) ->  Bool (v1 > v2)
         | _ -> raise @@ EvaluationException "mismatch types in `gt`"
+    in
+
+    let pairify_values v1 v2 =
+        Pair (v1,v2)
     in
 
     let not_value v = 
@@ -516,6 +531,14 @@ let rec evaluate program scopes =
                                             | _ -> raise @@ EvaluationException ("mismatch types in `string_of_char")
                                           )
         | BuiltIn ("read_line",0) -> String (input_line stdin)
+        | BuiltIn ("fst",1) -> ( match args with
+                                 | [Pair (v1,_)] -> v1
+                                 | _ -> raise @@ EvaluationException ("mismatch types in `fst`")
+                                )
+        | BuiltIn ("snd",1) -> ( match args with
+                                 | [Pair (_,v2)] -> v2
+                                 | _ -> raise @@ EvaluationException ("mismatch types in `snd`")
+                                )
         | BuiltIn (name,arity) -> raise @@ EvaluationException ("not implemented builtin " ^ name ^ "/" ^ string_of_int arity)
     in
 
@@ -543,6 +566,7 @@ let rec evaluate program scopes =
                 | Gt -> gt_values (eval_expr l) (eval_expr r)
                 | LtEq -> not_value @@ gt_values (eval_expr l) (eval_expr r)
                 | GtEq -> not_value @@ lt_values (eval_expr l) (eval_expr r)
+                | Pairify -> pairify_values (eval_expr l) (eval_expr r)
     in
 
     let eval stat = 
@@ -583,6 +607,8 @@ let run_file ifile =
                 BuiltIn ("char_at",2);
                 BuiltIn ("string_of_char",1);
                 BuiltIn ("read_line",0);
+                BuiltIn ("fst",1);
+                BuiltIn ("snd",1);
                 ] in
     let program = compile tokens builtins in
     evaluate program {vars=[]; funcs=Hashtbl.create 128;}
