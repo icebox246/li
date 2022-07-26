@@ -2,9 +2,15 @@
 
 Simple language written in ocaml.
 
-## Example
+## Examples
 
+Basic test of features:
 [examples in test.li](test.li)
+
+It's probably [Turing complete](https://en.wikipedia.org/wiki/Turing_completeness),
+because I was able to implement a Turing complete cellular automaton [Rule 110](https://en.wikipedia.org/wiki/Rule_110): 
+[rule110.li](rule110.li)
+
 
 ## Get started
 
@@ -20,8 +26,9 @@ ocaml li.ml test.li
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm
 
-**DONE (19):**
+**DONE (20):**
 
+- [x] prove turing completenes
 - [x] add builtin to read line from stdin
 - [x] add character to string conversion
 - [x] add character literals
