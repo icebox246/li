@@ -11,6 +11,8 @@ It's probably [Turing complete](https://en.wikipedia.org/wiki/Turing_completenes
 because I was able to implement a Turing complete cellular automaton [Rule 110](https://en.wikipedia.org/wiki/Rule_110): 
 [rule110.li](rule110.li)
 
+If you ever need to invert a binary tree, such task can be acomplished using this language: [bintree.li](bintree.li)
+
 
 ## Get started
 
