@@ -28,7 +28,7 @@ ocaml li.ml test.li
 
 **DONE (20):**
 
-- [x] prove turing completenes
+- [x] prove Turing completeness
 - [x] add builtin to read line from stdin
 - [x] add character to string conversion
 - [x] add character literals
