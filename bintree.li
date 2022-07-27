@@ -1,23 +1,25 @@
-fn gen_tree limit => {
-	fn gen_tree i => {
+alias node_t: pair int (pair node_t node_t)
+
+fn gen_tree limit: int => node_t {
+	fn gen_tree i: int => node_t {
 		if i <= limit 
-			__return := i, (gen_tree (i*2)), (gen_tree ((i*2) + 1))
+			__return = i, (gen_tree (i*2)), (gen_tree ((i*2) + 1))
 	} 
-	__return := gen_tree 1 
+	__return = gen_tree 1 
 }
 
-fn print_spaces n =>
+fn print_spaces n: int => null
 	if n > 0 {
 		$ print " "
 		$ print_spaces (n-1)
 	}
 
-fn print_tree tree => {
-	fn print_tree node depth => 
+fn print_tree tree: node_t => null {
+	fn print_tree node: node_t depth: int => null
 		if node != null {
-			let v := fst node
-			let l := fst snd node
-			let r := snd snd node
+			let v = fst node
+			let l = fst snd node
+			let r = snd snd node
 			$ print_tree l (depth + 1)
 			$ print_spaces (depth * 4)
 			$ println v
@@ -26,18 +28,18 @@ fn print_tree tree => {
 	$ print_tree tree 0
 }
 
-fn invert_tree node =>
+fn invert_tree node: node_t => node_t
 	if node != null {
-		let v := fst node
-		let l := fst snd node
-		let r := snd snd node
-		__return := v, (invert_tree r), (invert_tree l)
+		let v = fst node
+		let l = fst snd node
+		let r = snd snd node
+		__return = v, (invert_tree r), (invert_tree l)
 	}
 
-let tree := gen_tree 15
+let tree = gen_tree 15
 $ println "starting tree:"
 $ print_tree tree
 
-let inverted := invert_tree tree
+let inverted = invert_tree tree
 $ println "inverted tree:"
 $ print_tree inverted
