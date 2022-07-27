@@ -5,19 +5,19 @@ Simple staticly typed language written in ocaml.
 ## Examples
 
 Basic test of features:
-[examples in test.li](test.li)
+[examples in test.li](examples/test.li)
 
 It's probably [Turing complete](https://en.wikipedia.org/wiki/Turing_completeness),
 because I was able to implement a Turing complete cellular automaton [Rule 110](https://en.wikipedia.org/wiki/Rule_110): 
-[rule110.li](rule110.li)
+[rule110.li](examples/rule110.li)
 
-If you ever need to invert a binary tree, such task can be acomplished using this language: [bintree.li](bintree.li)
+If you ever need to invert a binary tree, such task can be acomplished using this language: [bintree.li](examples/bintree.li)
 
 
 ## Get started
 
 ```console
-ocaml li.ml test.li
+ocaml li.ml examples/test.li
 ```
 
 <!-- TODOS -->
