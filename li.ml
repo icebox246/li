@@ -39,7 +39,6 @@ type token =
     | OpenCurlyToken
     | CloseCurlyToken
     | VarToken
-    | SetToken
     | OpToken of operator
     | InlineOpToken of operator
     | ValueToken of value
@@ -47,9 +46,12 @@ type token =
     | IfToken
     | ElseToken
     | FunctionToken
+    | AliasToken
     | ArrowToken
     | DollarToken
     | NullToken
+    | ColonToken
+    | EqualsToken
 
 
 exception TokenizationError of string
@@ -111,6 +113,7 @@ let rec parse ic loc =
                         | "if" -> IfToken
                         | "else" -> ElseToken
                         | "fn" -> FunctionToken
+                        | "alias" -> AliasToken
                         | "true" -> ValueToken (Bool true)
                         | "false" -> ValueToken (Bool false)
                         | "null" -> ValueToken (Null)
@@ -122,7 +125,8 @@ let rec parse ic loc =
                | c :: r when is_op_char c ->
                        parse_op (b ^ string_of_char c) r
                | _ -> ((match b with
-                        | ":=" -> SetToken
+                        | ":" -> ColonToken
+                        | "=" -> EqualsToken
                         | "+" -> OpToken Add
                         | "*" -> OpToken Mult
                         | "-" -> OpToken Sub
@@ -186,7 +190,8 @@ let string_of_token token =
     | ValueToken (Bool b) -> ("<Int " ^ (string_of_bool b) ^ ">")
     | ValueToken (Null) -> "<Null>"
     | ValueToken (Pair (_,_)) -> raise @@ DebugException "unsupported"
-    | SetToken -> "<set>"
+    | ColonToken -> "<:>"
+    | EqualsToken -> "<=>"
     | OpToken Add -> "<+>"
     | OpToken Sub -> "<->"
     | OpToken Mult -> "<*>"
@@ -209,6 +214,7 @@ let string_of_token token =
     | IfToken -> "<if>"
     | ElseToken -> "<else>"
     | FunctionToken -> "<function>"
+    | AliasToken -> "<alias>"
     | ArrowToken -> "< => >"
     | DollarToken -> "< $ >"
     | NullToken -> "< null >"
@@ -219,6 +225,14 @@ exception CompilationError of string
 type builtin =
     BuiltIn of string * int
 
+type value_type = 
+    | IntType
+    | StringType
+    | BooleanType
+    | NullType
+    | PairType of value_type * value_type
+    | Alias of string
+
 type expression =
     | ValueEx of value
     | LabelEx of string
@@ -227,9 +241,10 @@ type expression =
     | OpEx of expression * operator * expression
 
 type compile_var_type =
-    | VariableType
-    | FunctionType of int * int
+    | VariableType of value_type
+    | FunctionType of value_type list * value_type * int
     | BuiltInType of builtin
+    | AliasType of value_type
 
 type compile_scope =
     {
@@ -240,36 +255,118 @@ let rec range a b =
     if a > b then []
              else a :: range (a+1) b
 
+let rec find_var name scopes =
+    match scopes with
+    | [] -> raise @@ CompilationError ("undefined variable `" ^ name ^ "`")
+    | v :: r -> ( match Hashtbl.find_opt v.vars name with
+                  | Some t -> t
+                  | None -> find_var name r
+                )
+let rec dealias_type scopes t = 
+        match t with
+        | Alias name -> (   match find_var name scopes with
+                            | AliasType t -> dealias_type scopes t   
+                            | _ -> raise @@ CompilationError "provided custom type name must be a type alias"
+                        )
+        | _ -> t
+
+let rec compare_types scopes a b =
+    let a = dealias_type scopes a in
+    let b = dealias_type scopes b in
+    match (a,b) with
+    | (NullType, _) -> true
+    | (_, NullType) -> true
+    | (a,b) when a == b -> true
+    | (PairType (a,b),PairType (c,d)) -> compare_types scopes a c && compare_types scopes b d
+    | _ -> false
+
 let rec compile_expr tokens scopes = 
-    let rec find_var name scopes =
-        match scopes with
-        | [] -> raise @@ CompilationError ("undefined variable `" ^ name ^ "`")
-        | v :: r -> ( match Hashtbl.find_opt v.vars name with
-                      | Some t -> t
-                      | None -> find_var name r
-                    )
+    let value_type_of_value v =
+        match v with
+        | Int _ -> IntType
+        | String _ -> StringType
+        | Bool _ -> BooleanType
+        | Null -> NullType
+        | _ -> raise @@ CompilationError "unsupported type"
     in
-    let (lhs, tokens) = 
+    let typecheck_op a o b =
+        match (a,o,b) with
+        | (StringType, Add, StringType) -> StringType
+        | (IntType, Add, IntType) -> IntType
+        | (IntType, Sub, IntType) -> IntType
+        | (IntType, Mult, IntType) -> IntType
+        | (IntType, Div, IntType) -> IntType
+        | (a, Pairify, b) -> PairType (a,b)
+        | (_, (Eq | NotEq | Lt | Gt | LtEq | GtEq),_) -> BooleanType
+        | _ -> raise @@ CompilationError "unsupported types in binary operator"
+    in
+    let dealias_type = dealias_type scopes
+    in
+    let typecheck_builtin b ets =
+        let ets = List.map dealias_type ets in
+        match b with
+        | BuiltIn ("println",1) 
+        | BuiltIn ("print", 1) ->  (match ets with
+                            | [IntType] | [StringType] | [BooleanType] | [NullType] | [PairType _] -> NullType
+                            | _ -> raise @@ CompilationError "mismatch type in builtin `println`"
+                           )
+        | BuiltIn ("substr",3) -> (
+           match ets with
+           | [StringType; IntType; IntType] -> StringType
+           | _ -> raise @@ CompilationError "type mismatch in `substr`"
+        )
+        | BuiltIn ("char_at",2) -> (
+           match ets with
+           | [StringType; IntType] -> IntType
+           | _ -> raise @@ CompilationError "type mismatch in `char_at"
+        )
+        | BuiltIn ("string_of_char",1) -> (
+           match ets with
+           | [IntType] -> StringType
+           | _ -> raise @@ CompilationError "type mismatch in `string_of_char`"
+        )
+        | BuiltIn ("read_line",0) -> StringType
+        | BuiltIn ("fst",1) -> (
+           match ets with
+           | [PairType (t1,_)] -> t1
+           | _ -> raise @@ CompilationError "type mismatch in `fst`"
+        )
+        | BuiltIn ("snd",1) -> (
+           match ets with
+           | [PairType (_,t2)] -> t2
+           | _ -> raise @@ CompilationError "type mismatch in `snd`"
+        )
+        | BuiltIn (name,arity) -> raise @@ CompilationError ("unsupported builtin in typechecking: " ^ name  ^ "/" ^ string_of_int arity)
+    in
+    let ((lhs, lvt, loc), tokens) = 
         match tokens with
-        | (ValueToken v,_) :: r -> (ValueEx v, r)
-        | (LabelToken n,_) :: r -> ( match find_var n scopes with
-                                     | VariableType -> (LabelEx n, r)
-                                     | FunctionType (arity,id) -> 
-                                             let (es,r) = List.fold_left (fun (es,r) _ -> let (e,r) = compile_expr r scopes in
-                                                                                  (es @ [e],r)) ([],r) (range 1 arity);
+        | (ValueToken v,l) :: r -> ((ValueEx v,value_type_of_value v,l), r)
+        | (LabelToken n,l) :: r -> ( match find_var n scopes with
+                                     | VariableType vt -> ((LabelEx n,vt,l), r)
+                                     | FunctionType (ats,rt,id) -> 
+                                             let (es,r) = List.fold_left (fun (es,r) t -> 
+                                                             let ((e,et,l),r) = compile_expr r scopes in
+                                                             if compare_types scopes t et then (es @ [e],r)
+                                                             else 
+                                                                 raise @@ CompilationError 
+                                                                 (string_of_location l ^ ": type mismatch in function argument")) 
+                                             ([],r) ats;
                                              in
-                                             (CallEx (id,es),r)
+                                             ((CallEx (id,es),rt,l),r)
                                      | BuiltInType b -> 
                                              let BuiltIn (_,arity) = b in
-                                             let (es,r) = List.fold_left (fun (es,r) _ -> let (e,r) = compile_expr r scopes in
-                                                                                  (es @ [e],r)) ([],r) (range 1 arity);
+                                             let ((es,ets),r) = List.fold_left (fun ((es,ets),r) _ -> let ((e,t,_),r) = compile_expr r scopes in
+                                                                     ((es @ [e],ets @ [t]),r)) (([],[]),r) (range 1 arity);
                                              in
-                                             (CallBuiltInEx (b,es),r)
+                                             let rt = typecheck_builtin b ets
+                                             in
+                                             ((CallBuiltInEx (b,es),rt,l),r)
 
+                                     | AliasType _ -> raise @@ CompilationError (string_of_location l ^ ": cannot use type names in expressions")
                                    )
-        | (OpenParenToken, _) :: r -> (let (e,r) = compile_expr r scopes in 
-                                        match (e,r) with
-                                        | (e, (CloseParenToken,_) :: r) -> (e,r)
+        | (OpenParenToken, l) :: r -> (let ((e,t,_),r) = compile_expr r scopes in 
+                                        match ((e,t),r) with
+                                        | ((e,t), (CloseParenToken,_) :: r) -> ((e,t,l),r)
                                         | _ -> raise @@ CompilationError ("missing `)`")
                                  )
         | (t, l) :: _ -> raise @@ CompilationError ("invalid expression: " ^ string_of_location l ^ ": " ^ string_of_token t)
@@ -277,8 +374,11 @@ let rec compile_expr tokens scopes =
     in
     match tokens with
     | (OpToken o,_) :: r -> 
-            let (rhs,tokens) = compile_expr r scopes in (OpEx (lhs, o, rhs),tokens)
-    | _ -> (lhs, tokens)
+            let ((rhs,rvt,_),tokens) = compile_expr r scopes in
+            let t = typecheck_op lvt o rvt in
+            ((OpEx (lhs, o, rhs),t, loc),tokens)
+            (* else raise @@ CompilationError (string_of_location loc ^ ": type mismatch in binary expression") *)
+    | _ -> ((lhs,lvt,loc), tokens)
 
 type statement =
     | VarDeclare of string
@@ -301,11 +401,11 @@ let compile tokens builtins =
     let push_new_scope scopes =
         {vars=Hashtbl.create 128;} :: scopes
     in
-    let push_args_scope args scopes = 
+    let push_args_scope args ats rt scopes = 
         let scopes = push_new_scope scopes in
         let vars = (List.hd scopes).vars in
-        List.iter (fun arg -> Hashtbl.add vars arg VariableType) args;
-        Hashtbl.add vars "__return" VariableType;
+        List.iter2 (fun arg at -> Hashtbl.add vars arg (VariableType at)) args ats;
+        Hashtbl.add vars "__return" (VariableType rt);
         scopes
     in
     let rec compile tokens is_global single scopes =
@@ -319,19 +419,45 @@ let compile tokens builtins =
            | Some _ -> raise @@ CompilationError ("redeclaration of `" ^ name ^ "`")
            | None -> Hashtbl.add vars name typ
        in
-       let rec check_var name scopes =
-           match scopes with
-           | [] -> raise @@ CompilationError ("undefined variable `" ^ name ^ "`")
-           | v :: r -> ( match Hashtbl.find_opt v.vars name with
-                         | Some _ -> ()
-                         | None -> check_var name r
-                       )
+       (* let rec check_var name scopes = *)
+       (*     match scopes with *)
+       (*     | [] -> raise @@ CompilationError ("undefined variable `" ^ name ^ "`") *)
+       (*     | v :: r -> ( match Hashtbl.find_opt v.vars name with *)
+       (*                   | Some _ -> () *)
+       (*                   | None -> check_var name r *)
+       (*                 ) *)
+       (* in *)
+       let rec compile_type tokens = 
+            match tokens with
+            | (OpenParenToken, l) :: rst -> let (t,rst) = compile_type rst in (
+                match rst with
+                | (CloseParenToken, _) :: rst -> (t,rst)
+                | _ -> raise @@ CompilationError (string_of_location l ^ ": missing `)`")
+                )
+            | (LabelToken "int",_) :: rst -> (IntType,rst)
+            | (LabelToken "string",_) :: rst -> (StringType,rst)
+            | (LabelToken "bool",_) :: rst -> (BooleanType,rst)
+            | (ValueToken Null, _) :: rst -> (NullType,rst)
+            | (LabelToken "pair",_) :: rst -> let (lt,rst) = compile_type rst in
+                                              let (rt,rst) = compile_type rst in 
+                                                    (PairType (lt,rt),rst)
+            | (LabelToken name,_) :: rst -> (Alias name,rst)
+            | (t,l) :: rst -> raise @@ CompilationError (string_of_location l ^ ": unexpected token in type: " ^ string_of_token t)
+            | [] -> raise @@ CompilationError "found eof instead of type" 
        in
        let rec compile_function_args tokens =
            match tokens with
            | [] -> raise @@ CompilationError "found eof before `=>`"
-           | (LabelToken name, _) :: rst -> [name] @< compile_function_args rst
-           | (ArrowToken,_) :: rst -> ([],rst)
+           | (ArrowToken,_) :: rst -> let (t,rst) = compile_type rst  in
+                                       (match t with
+                                       | _ -> ([],[],t,rst)
+                                       )
+           | (LabelToken name, _) :: (ColonToken,_) :: rst -> 
+                   let (t,rst) = compile_type rst in 
+                   (match t with
+                   | NullType -> raise @@ CompilationError "functions cannot have `null` type arguments"
+                   | _ -> let (args,ats,rt,rst2) = compile_function_args rst in (name :: args, t :: ats, rt, rst2)
+                   )
            | (t,l) :: rst ->
                raise @@ CompilationError ("unexpected token in args: " ^ string_of_location l ^ " " ^ string_of_token t)
        in
@@ -340,32 +466,66 @@ let compile tokens builtins =
        | [] -> raise @@ CompilationError ("scope wasn't closed before eof")
        | (CloseCurlyToken,l) :: rst when not is_global ->
                ([],rst)
-       | (VarToken,l) :: (LabelToken name,_) :: (SetToken,_) :: rst -> 
-               define_var name VariableType;
-               let (e,rst) = compile_expr rst scopes in
-                   [VarDeclare name; SetVariable (name,e)] @< compile_tail rst;
-       | (VarToken,l) :: (LabelToken name,_) :: rst -> 
-               define_var name VariableType;
-                   [VarDeclare name] @< compile_tail rst
+       | (VarToken,l) :: (LabelToken name,_) :: (EqualsToken,_) :: rst -> 
+               let ((e,t,_),rst) = compile_expr rst scopes in (
+                   match t with
+                   | NullType -> 
+                           raise @@ CompilationError (string_of_location l ^ ": cannot create variables of `null` type")
+                   | _ -> define_var name (VariableType t);
+                           [VarDeclare name; SetVariable (name,e)] @< compile_tail rst;
+               )
+
+                 
+       | (VarToken,l) :: (LabelToken name,_) :: (ColonToken, _) :: rst -> 
+               let (t,rst) = compile_type rst in
+               (
+                   match rst with
+                   | (EqualsToken, _) :: rst -> 
+                           let ((e,et,_),rst) = compile_expr rst scopes in (
+                               if compare_types scopes t et then 
+                                   (define_var name (VariableType t);
+                                   (match t with
+                                   | NullType -> 
+                                           raise @@ CompilationError (string_of_location l ^ ": cannot create variables of `null` type")
+                                   | _ ->                            
+                                           [VarDeclare name; SetVariable (name,e)] @< compile_tail rst;)
+                                   )
+                               else raise @@ CompilationError (string_of_location l ^ ": type mismatch in variable declaration")
+                           )
+                   | rst ->    
+                           define_var name (VariableType t);
+                           (match t with
+                           | NullType -> 
+                                   raise @@ CompilationError (string_of_location l ^ ": cannot create variables of `null` type")
+                           | _ ->                            
+                                   [VarDeclare name] @< compile_tail rst
+                           )               
+               )
        | (FunctionToken,l) :: (LabelToken name,_) :: rst -> 
-               let (args,rst) = compile_function_args rst in
+               let (args,ats,rt,rst) = compile_function_args rst in
                current_function_id := !current_function_id + 1;
                let id = !current_function_id in
-               define_var name @@ FunctionType (List.length args, id);
-               let (sts,rst) = compile rst false true (scopes |> push_args_scope args |> push_new_scope) in
+               define_var name @@ FunctionType (ats, rt, id);
+               let (sts,rst) = compile rst false true (scopes |> push_args_scope args ats rt |> push_new_scope) in
                [FuncDeclare (id,args,sts); ] @< compile_tail rst;
-       | (LabelToken name,l) :: (SetToken,_)  :: rst -> 
-               check_var name scopes;
-               let (e,rst) = compile_expr rst scopes in
-                   [SetVariable (name,e)] @< compile_tail rst
+       | (LabelToken name,l) :: (EqualsToken,_)  :: rst -> (
+               match find_var name scopes with
+               | VariableType vt -> 
+                   let ((e,t,_),rst) = compile_expr rst scopes in 
+                       if compare_types scopes t vt then
+                           [SetVariable (name,e)] @< compile_tail rst
+                       else
+                            raise @@ CompilationError (string_of_location l ^ ": mismatch types in variable assignement")
+               | _ -> raise @@ CompilationError (string_of_location l ^ ": trying to assign value to function name")
+       )
        | (LabelToken n1,l) :: (InlineOpToken o,_) :: rst -> 
-               let (e,rst) = compile_expr rst scopes in
+               let ((e,t,_),rst) = compile_expr rst scopes in
                    [SetVariable (n1,OpEx(LabelEx n1,o,e))] @< compile_tail rst
        | (OpenCurlyToken,l) :: rst ->
                let (sts,rst) = compile rst false false (push_new_scope scopes) in
                    [ScopeBlock sts] @< compile_tail rst
        | (IfToken,l) :: rst ->
-               let (e,rst) = compile_expr rst scopes in
+               let ((e,t,_),rst) = compile_expr rst scopes in
                let (sts,rst) = compile rst false true (push_new_scope scopes) in
                (   match rst with
                    | (ElseToken,_) :: rst -> ( let (ests,rst) = compile rst false true (push_new_scope scopes) in
@@ -374,8 +534,12 @@ let compile tokens builtins =
                    | _ -> [IfStatement (e,sts)] @< compile_tail rst
                )
        | (DollarToken,l)  :: rst -> 
-               let (e,rst) = compile_expr rst scopes in
+               let ((e,_,_),rst) = compile_expr rst scopes in
                    [LonelyExpression e] @< compile_tail rst
+       | (AliasToken,l) :: (LabelToken name, _) :: (ColonToken,_) :: rst ->
+               let (t,rst) = compile_type rst
+               in  define_var name @@ AliasType t;
+                   compile_tail rst
        | (t,l) :: _ -> 
                raise @@ 
                    CompilationError ("unexpected token while compiling statements: " ^ string_of_location l ^ " " ^ string_of_token t)

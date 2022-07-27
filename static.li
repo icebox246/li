@@ -1,0 +1,39 @@
+let a = 2 + 2
+$ println a
+
+fn concat a: string b: string => string {
+	__return = a + b 
+}
+
+let b: string = concat "Hello" " World"
+$ print b
+$ println ""
+
+$ println substr b 0 5
+
+$ println char_at b 0
+$ println string_of_char char_at b 0
+
+let var: string = null
+
+fn test a: int => int {
+	__return = a
+}
+
+alias list: pair int list
+
+let nums: list = 1, 2, 3, 4, null
+
+fn print_list xs: list => null {
+	if xs != null {
+		$ print fst xs
+		if (snd xs) != null {
+			$ print ", "
+			$ print_list snd xs
+		}
+	}
+}
+
+$ print_list nums
+$ println ""
+
