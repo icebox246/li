@@ -1,6 +1,6 @@
 # li
 
-Simple language written in ocaml.
+Simple staticly typed language written in ocaml.
 
 ## Examples
 
