@@ -6,10 +6,10 @@ $ println "Hello, li!"
 $ println "========="
 
 // function computing a ^ b
-fn pow a b => 
-	if b == 0 __return := 1
+fn pow a:int b:int => int
+	if b == 0 __return = 1
 	else {
-		__return := a * (pow a (b - 1))
+		__return = a * (pow a (b - 1))
 	}
 
 $ print "3 ^ 5 = "
@@ -18,7 +18,7 @@ $ println pow 3 5
 $ println "========="
 
 // function printing numbers from range a .. b
-fn print_range a b => 
+fn print_range a:int b:int => null
 	if a <= b {
 		$ print a	
 		if a != b 
@@ -32,10 +32,10 @@ $ println ""
 $ println "========="
 
 // examples on string manipulation
-let str := "Hello World!"
+let str = "Hello World!"
 $ println str
 
-let str1 := substr str 6 5
+let str1 = substr str 6 5
 $ println str1
 
 $ print "'W' = "
@@ -43,14 +43,14 @@ $ println char_at str1 0
 
 
 // function which calculates length of string
-fn strlen str => {
-	fn __strlen str i => {
+fn strlen str:string => int {
+	fn __strlen str:string i:int => int {
 		if (char_at str i) == 0 
-			__return := i
+			__return = i
 		else
-			__return := __strlen str (i+1)
+			__return = __strlen str (i+1)
 	}
-	__return := __strlen str 0
+	__return = __strlen str 0
 }
 
 $ print "length of '" + str + "' is " $println strlen str
@@ -58,40 +58,40 @@ $ print "length of '" + str + "' is " $println strlen str
 $ println "========="
 
 // function which converts string to int
-fn stoi str => {
-	let len := strlen str
-	fn __stoi i res => {
+fn stoi str:string => int {
+	let len = strlen str
+	fn __stoi i:int res:int => int {
 		if i < len {
 			res *= 10	
 			res += (char_at str i) - '0'
-			__return := __stoi (i+1) res
+			__return = __stoi (i+1) res
 		} else 
-			__return := res
+			__return = res
 	}
-	__return := __stoi 0 0
+	__return = __stoi 0 0
 }
 
-let sth := "3124"
+let sth = "3124"
 $print sth + " + 1 = "
 $println (stoi sth) + 1
 
 // a % b
-fn mod a b => {
-	__return := a - ((a / b) * b)
+fn mod a:int b:int => int {
+	__return = a - ((a / b) * b)
 }
 
 // function which converts int to string
-fn itos n => {
-	if n == 0 __return := "0"
+fn itos n:int => string {
+	if n == 0 __return = "0"
 	else {
-		fn __itos n => {
-			__return := ""
+		fn __itos n:int => string {
+			__return = ""
 			if n > 0 {
-				let c := (mod n 10) + '0'
-				__return := (__itos (n/10)) + string_of_char c
+				let c = (mod n 10) + '0'
+				__return = (__itos (n/10)) + string_of_char c
 			}
 		}
-		__return := __itos n
+		__return = __itos n
 	}
 }
 
@@ -102,8 +102,8 @@ $ println "========="
 
 // fizzbuzz
 
-fn fizzbuzz n => {
-	fn __fizzbuzz i =>
+fn fizzbuzz n:int => null {
+	fn __fizzbuzz i:int => null
 		if i <= n {
 			if (mod i 15) == 0 
 				$ print "FizzBuzz"

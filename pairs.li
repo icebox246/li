@@ -1,7 +1,7 @@
 $ println "Hello, pairs!"
 
 // declare a pair
-let p := 1, 2
+let p = 1, 2
 
 // print a pair
 $ println p
@@ -9,19 +9,20 @@ $ println fst p // print first value from pair
 $ println snd p // print first value from pair
 
 // declare a simple triple
-let t := 1, 2, 3
+let t = 1, 2, 3
 
 // print a triple
 $ println t
 
 // declare a simple list
-let list := 1, 2, 3, 4, 5, null
+alias list_t: pair int list_t
+let list: list_t = 1, 2, 3, 4, 5, null
 
-fn print_list lst => {
+fn print_list lst: list_t => null {
 	$ print "[ "
-	fn __print_list lst => {
+	fn __print_list lst: list_t => null {
 		$ print fst lst
-		let tl := snd lst
+		let tl = snd lst
 		if tl != null {
 			$ print ", "
 			$ __print_list tl

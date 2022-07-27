@@ -22,8 +22,9 @@ ocaml li.ml test.li
 
 <!-- TODOS -->
 
-**TODO (3):**
+**TODO (4):**
 
+- [ ] add static typechecking
 - [ ] add builtin to read a file
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm

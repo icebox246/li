@@ -1,6 +1,6 @@
 // program asks for name
 $ println "What's your name: "
 // stores name from stdin
-let name := read_line
+let name:string = read_line
 // greets the person
 $ println "Hello, " + name

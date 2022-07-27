@@ -1,50 +1,52 @@
 // a % b
-fn mod a b => __return := a - ((a / b) * b)
+fn mod a:int b:int => int __return = a - ((a / b) * b)
+
+alias list: pair int list
 
 // printst state
-fn print_state st => {
+fn print_state st: list => null {
 	if (fst st) == 1 $ print "#"
 	else $ print " "
-	let tl := snd st
+	let tl = snd st
 	if tl != null $ print_state tl
 }
 
 // binary shift to right (a >> b)
-fn shr a b => {
-	if b == 0 __return := a
-	else __return := shr (a/2) (b-1)
+fn shr a:int b:int => int {
+	if b == 0 __return = a
+	else __return = shr (a/2) (b-1)
 }
 
 // change this to 110, 90, 30, 184
-let lookup := 110
+let lookup = 110
 
 // calculates next state based on previous
-fn next_state last => {
-	fn gen_state a lst => {
+fn next_state last:list => list {
+	fn gen_state a:int lst:list => list {
 		if lst != null {
-			let out := gen_state (fst lst) (snd lst)
-			let b := fst lst
-			let c := 0
+			let out = gen_state (fst lst) (snd lst)
+			let b = fst lst
+			let c = 0
 			if (snd lst) != null {
-				c := fst snd lst	
+				c = fst snd lst	
 			}
-			let v := (((a * 2) + b) * 2) + c
-			let new := mod (shr lookup v) 2
-			__return := new, out
-		} else __return := null
+			let v = (((a * 2) + b) * 2) + c
+			let new = mod (shr lookup v) 2
+			__return = new, out
+		} else __return = null
 	}
-	__return := gen_state 0 last
+	__return = gen_state 0 last
 }
 
 // creates new 'empty' state
-fn new_state n one => {
-	if n <= 0 __return := null
-	else if n == one __return := 1, new_state (n-1) one
-	else __return := 0, new_state (n-1) one
+fn new_state n:int one:int => list {
+	if n <= 0 __return = null
+	else if n == one __return = 1, new_state (n-1) one
+	else __return = 0, new_state (n-1) one
 }
 
 // iterates generating new states
-fn iter_sim n st => {
+fn iter_sim n:int st:list => null {
 	$ print_state st
 	$ println ""
 	if n != 0 
@@ -52,7 +54,7 @@ fn iter_sim n st => {
 }
 
 // initializes state to zeroes with single one
-let start_state := new_state 64 32
+let start_state = new_state 64 32
 
 // iterates simulation
 $ iter_sim 32 start_state
