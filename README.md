@@ -22,15 +22,15 @@ ocaml li.ml examples/test.li
 
 <!-- TODOS -->
 
-**TODO (4):**
+**TODO (3):**
 
-- [ ] add static typechecking
 - [ ] add builtin to read a file
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm
 
-**DONE (20):**
+**DONE (21):**
 
+- [x] add static typechecking
 - [x] prove Turing completeness
 - [x] add builtin to read line from stdin
 - [x] add character to string conversion
