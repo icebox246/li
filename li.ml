@@ -396,8 +396,8 @@ type statement =
     | IfStatement of expression * statement list
     | IfElseStatement of expression * statement list * statement list
     | WhileStatement of expression * statement list
-    | BreakExpression
-    | ContinueExpression
+    | BreakStatement
+    | ContinueStatement
     | LonelyExpression of expression
 
 type func =
@@ -584,8 +584,8 @@ let compile tokens builtins =
                else
                    raise
                        @@ CompilationError (string_of_location el ^ ": condition in while statement must be of type `bool`")
-       | (BreakToken,l) :: rst -> [BreakExpression] @< compile_tail rst
-       | (ContinueToken,l) :: rst -> [ContinueExpression] @< compile_tail rst
+       | (BreakToken,l) :: rst -> [BreakStatement] @< compile_tail rst
+       | (ContinueToken,l) :: rst -> [ContinueStatement] @< compile_tail rst
        | (DollarToken,l)  :: rst -> 
                let ((e,_,_),rst) = compile_expr rst scopes in
                    [LonelyExpression e] @< compile_tail rst
@@ -818,8 +818,8 @@ let rec evaluate program scopes =
                                         | Bool false -> ()
                                         | _ -> raise @@ EvaluationException "expected bool value in `while"
                                     )
-        | BreakExpression -> raise @@ EvaluationDecisionException BreakDecision
-        | ContinueExpression -> raise @@ EvaluationDecisionException ContinueDecision
+        | BreakStatement -> raise @@ EvaluationDecisionException BreakDecision
+        | ContinueStatement -> raise @@ EvaluationDecisionException ContinueDecision
         | FuncDeclare (id,args,sts) -> declare_func id args sts
         | LonelyExpression e -> let _ = eval_expr e in ()
         in
