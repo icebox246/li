@@ -20,15 +20,13 @@ let list: list_t = 1, 2, 3, 4, 5, null
 
 fn print_list lst: list_t => null {
 	$ print "[ "
-	fn __print_list lst: list_t => null {
-		$ print fst lst
-		let tl = snd lst
-		if tl != null {
+	let head = lst
+	while head != null {
+		$ print fst head
+		head = snd head
+		if head != null
 			$ print ", "
-			$ __print_list tl
-		}
 	}
-	$ __print_list lst
 	$ print " ]"
 }
 
