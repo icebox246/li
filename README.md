@@ -28,8 +28,9 @@ ocaml li.ml examples/test.li
 - [ ] make it compilable (to wasm?)
 - [ ] maybe native build with nasm
 
-**DONE (22):**
+**DONE (23):**
 
+- [x] add while loops
 - [x] make it so functions can access only global scope vars
 - [x] add static typechecking
 - [x] prove Turing completeness

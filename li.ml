@@ -45,6 +45,7 @@ type token =
     | LabelToken of string
     | IfToken
     | ElseToken
+    | WhileToken
     | FunctionToken
     | AliasToken
     | ArrowToken
@@ -52,7 +53,8 @@ type token =
     | NullToken
     | ColonToken
     | EqualsToken
-
+    | BreakToken
+    | ContinueToken
 
 exception TokenizationError of string
 
@@ -112,6 +114,9 @@ let rec parse ic loc =
                         (* | "println" -> PrintLnToken *)
                         | "if" -> IfToken
                         | "else" -> ElseToken
+                        | "while" -> WhileToken
+                        | "break" -> BreakToken
+                        | "continue" -> ContinueToken
                         | "fn" -> FunctionToken
                         | "alias" -> AliasToken
                         | "true" -> ValueToken (Bool true)
@@ -213,6 +218,9 @@ let string_of_token token =
     | LabelToken s -> ("<Label " ^ s ^ ">")
     | IfToken -> "<if>"
     | ElseToken -> "<else>"
+    | WhileToken -> "<while>"
+    | BreakToken -> "<break>"
+    | ContinueToken -> "<continue>"
     | FunctionToken -> "<function>"
     | AliasToken -> "<alias>"
     | ArrowToken -> "< => >"
@@ -387,6 +395,9 @@ type statement =
     | FuncDeclare of int * string list * statement list
     | IfStatement of expression * statement list
     | IfElseStatement of expression * statement list * statement list
+    | WhileStatement of expression * statement list
+    | BreakExpression
+    | ContinueExpression
     | LonelyExpression of expression
 
 type func =
@@ -565,6 +576,16 @@ let compile tokens builtins =
                                              )
                    | _ -> [IfStatement (e,sts)] @< compile_tail rst
                )
+       | (WhileToken,l) :: rst ->
+               let ((e,t,el),rst) = compile_expr rst scopes in
+               if t == BooleanType then
+                   let (sts,rst) = compile rst false true (push_new_scope scopes) in
+                   [WhileStatement (e,sts)] @< compile_tail rst
+               else
+                   raise
+                       @@ CompilationError (string_of_location el ^ ": condition in while statement must be of type `bool`")
+       | (BreakToken,l) :: rst -> [BreakExpression] @< compile_tail rst
+       | (ContinueToken,l) :: rst -> [ContinueExpression] @< compile_tail rst
        | (DollarToken,l)  :: rst -> 
                let ((e,_,_),rst) = compile_expr rst scopes in
                    [LonelyExpression e] @< compile_tail rst
@@ -588,6 +609,10 @@ type evaluation_scope =
         funcs : (int, func) Hashtbl.t;
     }
 
+type evaluation_decision =
+    | BreakDecision
+    | ContinueDecision
+exception EvaluationDecisionException of evaluation_decision
 
 let rec evaluate program scopes =
     let scopes = {vars=Hashtbl.create 128 :: scopes.vars; funcs=scopes.funcs}  in
@@ -766,7 +791,7 @@ let rec evaluate program scopes =
                 | Pairify -> pairify_values (eval_expr l) (eval_expr r)
     in
 
-    let eval stat = 
+    let rec eval stat =
         match stat with
         | VarDeclare name -> declare_var name scopes
         | SetVariable (name, e) -> set_var name (eval_expr e) scopes
@@ -777,13 +802,24 @@ let rec evaluate program scopes =
                                     | Bool true -> evaluate sts scopes
                                     | Bool false -> ()
                                     | _ -> raise @@ EvaluationException "expected bool value in `if`"
-                                 )   
+                                 )
         | IfElseStatement (e,sts,ests) -> 
                                  (  match eval_expr e with
                                     | Bool true -> evaluate sts scopes
                                     | Bool false -> evaluate ests scopes
                                     | _ -> raise @@ EvaluationException "expected bool value in `if`"
                                  )
+        | WhileStatement (e,sts) -> (  match eval_expr e with
+                                        | Bool true -> (match evaluate sts scopes with
+                                                        | () -> eval stat
+                                                        | exception EvaluationDecisionException BreakDecision -> ()
+                                                        | exception EvaluationDecisionException ContinueDecision -> eval stat
+                                                       )
+                                        | Bool false -> ()
+                                        | _ -> raise @@ EvaluationException "expected bool value in `while"
+                                    )
+        | BreakExpression -> raise @@ EvaluationDecisionException BreakDecision
+        | ContinueExpression -> raise @@ EvaluationDecisionException ContinueDecision
         | FuncDeclare (id,args,sts) -> declare_func id args sts
         | LonelyExpression e -> let _ = eval_expr e in ()
         in

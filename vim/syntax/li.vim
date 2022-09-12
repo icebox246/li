@@ -8,7 +8,7 @@ highligh link liChar Character
 syn match liNumber /\(\w\)\@<![0-9]\+/
 highligh link liNumber Number
 
-syn keyword liKeyword __return if else fn let alias
+syn keyword liKeyword __return if else fn let alias while break continue
 highligh link liKeyword Keyword
 
 syn keyword liType int string bool pair
