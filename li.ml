@@ -395,6 +395,18 @@ type func =
 let (@<) a (b,c) =
     (a @ b, c)
 
+exception ArgumentException
+
+let rec take_all_but_last_2 lst = 
+    match lst with
+    | [_;_] | [_] | [] -> []
+    | x :: xs -> x :: take_all_but_last_2 xs
+
+let rec take_last_2 lst =
+    match lst with
+    | [] | [_] -> raise ArgumentException
+    | [x;y] -> [x;y]
+    | x :: xs -> take_last_2 xs
 
 let compile tokens builtins =
     let current_function_id = ref 0 in
@@ -407,6 +419,26 @@ let compile tokens builtins =
         List.iter2 (fun arg at -> Hashtbl.add vars arg (VariableType at)) args ats;
         Hashtbl.add vars "__return" (VariableType rt);
         scopes
+    in
+    let create_function_scopes args ats rt scopes =
+        let non_global = take_all_but_last_2 scopes in
+        let global = take_last_2 scopes in
+        (* Hashtbl.iter (fun n _ -> print_endline n; ) global.vars; *)
+        let without_local_vars = 
+            (List.map 
+                (fun s -> 
+                    let vs = (Hashtbl.copy s.vars) in
+                    Hashtbl.filter_map_inplace 
+                        (fun n v -> match v with
+                                    | VariableType _ -> None
+                                    | other -> Some other
+                        ) vs;
+                    {vars=vs}
+                )
+            non_global
+            ) @ global
+        in
+        push_args_scope args ats rt without_local_vars
     in
     let rec compile tokens is_global single scopes =
        let compile_tail rst =
@@ -506,7 +538,7 @@ let compile tokens builtins =
                current_function_id := !current_function_id + 1;
                let id = !current_function_id in
                define_var name @@ FunctionType (ats, rt, id);
-               let (sts,rst) = compile rst false true (scopes |> push_args_scope args ats rt |> push_new_scope) in
+               let (sts,rst) = compile rst false true (scopes |> create_function_scopes args ats rt |> push_new_scope) in
                [FuncDeclare (id,args,sts); ] @< compile_tail rst;
        | (LabelToken name,l) :: (EqualsToken,_)  :: rst -> (
                match find_var name scopes with
@@ -555,6 +587,7 @@ type evaluation_scope =
         vars : (string, value) Hashtbl.t list;
         funcs : (int, func) Hashtbl.t;
     }
+
 
 let rec evaluate program scopes =
     let scopes = {vars=Hashtbl.create 128 :: scopes.vars; funcs=scopes.funcs}  in

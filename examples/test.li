@@ -60,15 +60,15 @@ $ println "========="
 // function which converts string to int
 fn stoi str:string => int {
 	let len = strlen str
-	fn __stoi i:int res:int => int {
+	fn __stoi len:int i:int res:int => int {
 		if i < len {
 			res *= 10	
 			res += (char_at str i) - '0'
-			__return = __stoi (i+1) res
+			__return = __stoi len (i+1) res
 		} else 
 			__return = res
 	}
-	__return = __stoi 0 0
+	__return = __stoi len 0 0
 }
 
 let sth = "3124"
@@ -103,7 +103,7 @@ $ println "========="
 // fizzbuzz
 
 fn fizzbuzz n:int => null {
-	fn __fizzbuzz i:int => null
+	fn __fizzbuzz n:int i:int => null
 		if i <= n {
 			if (mod i 15) == 0 
 				$ print "FizzBuzz"
@@ -117,9 +117,9 @@ fn fizzbuzz n:int => null {
 			if i < n
 				$ print ", "
 
-			$ __fizzbuzz i + 1
+			$ __fizzbuzz n i+1
 		}
-	$ __fizzbuzz 1
+	$ __fizzbuzz n 1
 }
 
 $ fizzbuzz 20

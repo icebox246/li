@@ -1,11 +1,11 @@
 alias node_t: pair int (pair node_t node_t)
 
 fn gen_tree limit: int => node_t {
-	fn gen_tree i: int => node_t {
+	fn gen_tree limit: int i: int => node_t {
 		if i <= limit 
-			__return = i, (gen_tree (i*2)), (gen_tree ((i*2) + 1))
+			__return = i, (gen_tree limit (i*2)), (gen_tree limit ((i*2) + 1))
 	} 
-	__return = gen_tree 1 
+	__return = gen_tree limit 1 
 }
 
 fn print_spaces n: int => null
