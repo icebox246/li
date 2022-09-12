@@ -4,7 +4,7 @@ let a = 2 + 2
 $ println a
 
 fn concat a: string b: string => string {
-	__return = a + b 
+	return a + b
 }
 
 let b: string = concat "Hello" " World"
@@ -19,7 +19,7 @@ $ println string_of_char char_at b 0
 let var: string = null
 
 fn test a: int => int {
-	__return = a
+	return a
 }
 
 alias list: pair int list

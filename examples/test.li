@@ -6,11 +6,10 @@ $ println "Hello, li!"
 $ println "========="
 
 // function computing a ^ b
-fn pow a:int b:int => int
-	if b == 0 __return = 1
-	else {
-		__return = a * (pow a (b - 1))
-	}
+fn pow a:int b:int => int {
+	if b == 0 return 1
+	return a * (pow a (b - 1))
+}
 
 $ print "3 ^ 5 = "
 $ println pow 3 5
@@ -47,7 +46,7 @@ fn strlen str:string => int {
 	let len = 0
 	while (char_at str len) != 0
 		len += 1
-	__return = len
+	return len
 }
 
 $ print "length of '" + str + "' is " $println strlen str
@@ -64,7 +63,7 @@ fn stoi str:string => int {
 		res += (char_at str i) - '0'
 		i += 1
 	}
-	__return = res
+	return res
 }
 
 let sth = "3124"
@@ -72,23 +71,23 @@ $print sth + " + 1 = "
 $println (stoi sth) + 1
 
 // a % b
-fn mod a:int b:int => int {
-	__return = a - ((a / b) * b)
-}
+fn mod a:int b:int => int 
+	return a - ((a / b) * b)
+
 
 // function which converts int to string
 fn itos n:int => string {
-	if n == 0 __return = "0"
-	else {
-		fn __itos n:int => string {
-			__return = ""
-			if n > 0 {
-				let c = (mod n 10) + '0'
-				__return = (__itos (n/10)) + string_of_char c
-			}
+	if n == 0 return "0"
+
+	fn __itos n:int => string {
+		if n > 0 {
+			let c = (mod n 10) + '0'
+			return (__itos (n/10)) + string_of_char c
 		}
-		__return = __itos n
+		return ""
 	}
+
+	return __itos n
 }
 
 if (itos stoi sth) == sth 

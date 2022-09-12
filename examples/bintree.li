@@ -3,9 +3,9 @@ alias node_t: pair int (pair node_t node_t)
 fn gen_tree limit: int => node_t {
 	fn gen_tree limit: int i: int => node_t {
 		if i <= limit 
-			__return = i, (gen_tree limit (i*2)), (gen_tree limit ((i*2) + 1))
+			return i, (gen_tree limit (i*2)), (gen_tree limit ((i*2) + 1))
 	} 
-	__return = gen_tree limit 1 
+	return gen_tree limit 1
 }
 
 fn print_spaces n: int => null
@@ -33,7 +33,7 @@ fn invert_tree node: node_t => node_t
 		let v = fst node
 		let l = fst snd node
 		let r = snd snd node
-		__return = v, (invert_tree r), (invert_tree l)
+		return v, (invert_tree r), (invert_tree l)
 	}
 
 let tree = gen_tree 15

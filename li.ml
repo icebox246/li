@@ -55,6 +55,7 @@ type token =
     | EqualsToken
     | BreakToken
     | ContinueToken
+    | ReturnToken
 
 exception TokenizationError of string
 
@@ -117,6 +118,7 @@ let rec parse ic loc =
                         | "while" -> WhileToken
                         | "break" -> BreakToken
                         | "continue" -> ContinueToken
+                        | "return" -> ReturnToken
                         | "fn" -> FunctionToken
                         | "alias" -> AliasToken
                         | "true" -> ValueToken (Bool true)
@@ -221,6 +223,7 @@ let string_of_token token =
     | WhileToken -> "<while>"
     | BreakToken -> "<break>"
     | ContinueToken -> "<continue>"
+    | ReturnToken -> "<return>"
     | FunctionToken -> "<function>"
     | AliasToken -> "<alias>"
     | ArrowToken -> "< => >"
@@ -398,6 +401,7 @@ type statement =
     | WhileStatement of expression * statement list
     | BreakStatement
     | ContinueStatement
+    | ReturnStatement of expression
     | LonelyExpression of expression
 
 type func =
@@ -589,6 +593,17 @@ let compile tokens builtins =
        | (DollarToken,l)  :: rst -> 
                let ((e,_,_),rst) = compile_expr rst scopes in
                    [LonelyExpression e] @< compile_tail rst
+       | (ReturnToken,l)  :: rst ->
+               let ((e,t,_),rst) = compile_expr rst scopes in
+               (   match find_var "__return" scopes with
+                   | VariableType vt -> (
+                       if compare_types scopes t vt then
+                           [ReturnStatement e] @< compile_tail rst
+                       else
+                           raise @@ CompilationError (string_of_location l ^ ": wrong return type")
+                   )
+                   | _ -> raise @@ CompilationError (string_of_location l ^ ": using `return` outside of a function")
+               )
        | (AliasToken,l) :: (LabelToken name, _) :: (ColonToken,_) :: rst ->
                let (t,rst) = compile_type rst
                in  define_var name @@ AliasType t;
@@ -612,6 +627,7 @@ type evaluation_scope =
 type evaluation_decision =
     | BreakDecision
     | ContinueDecision
+    | ReturnDecision
 exception EvaluationDecisionException of evaluation_decision
 
 let rec evaluate program scopes =
@@ -772,7 +788,7 @@ let rec evaluate program scopes =
                               let Function (names, sts) = get_func id scopes in
                                   declare_var "__return" scopes;
                                   List.iter2 (fun name e -> declare_var name scopes; set_var name (eval_expr e) scopes) names args;
-                                  evaluate sts scopes;
+                                  (try evaluate sts scopes with | EvaluationDecisionException ReturnDecision -> ());
                                   get_var "__return" scopes
         | CallBuiltInEx (b,args) -> let args = List.map eval_expr args in
                                     exec_builtin args b 
@@ -811,15 +827,19 @@ let rec evaluate program scopes =
                                  )
         | WhileStatement (e,sts) -> (  match eval_expr e with
                                         | Bool true -> (match evaluate sts scopes with
-                                                        | () -> eval stat
-                                                        | exception EvaluationDecisionException BreakDecision -> ()
-                                                        | exception EvaluationDecisionException ContinueDecision -> eval stat
+                                                        | exception EvaluationDecisionException BreakDecision
+                                                        | exception EvaluationDecisionException ReturnDecision
+                                                            -> ()
+                                                        | () 
+                                                        | exception EvaluationDecisionException ContinueDecision
+                                                            -> eval stat
                                                        )
                                         | Bool false -> ()
                                         | _ -> raise @@ EvaluationException "expected bool value in `while"
                                     )
         | BreakStatement -> raise @@ EvaluationDecisionException BreakDecision
         | ContinueStatement -> raise @@ EvaluationDecisionException ContinueDecision
+        | ReturnStatement e -> set_var "__return" (eval_expr e) scopes; raise @@ EvaluationDecisionException ReturnDecision
         | FuncDeclare (id,args,sts) -> declare_func id args sts
         | LonelyExpression e -> let _ = eval_expr e in ()
         in

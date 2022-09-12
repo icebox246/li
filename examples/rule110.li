@@ -1,5 +1,5 @@
 // a % b
-fn mod a:int b:int => int __return = a - ((a / b) * b)
+fn mod a:int b:int => int return a - ((a / b) * b)
 
 alias list: pair int list
 
@@ -13,8 +13,8 @@ fn print_state st: list => null {
 
 // binary shift to right (a >> b)
 fn shr a:int b:int => int {
-	if b == 0 __return = a
-	else __return = shr (a/2) (b-1)
+	if b == 0 return a
+	return shr (a/2) (b-1)
 }
 
 // change this to 110, 90, 30, 184
@@ -32,17 +32,18 @@ fn next_state last:list => list {
 			}
 			let v = (((a * 2) + b) * 2) + c
 			let new = mod (shr lookup v) 2
-			__return = new, out
-		} else __return = null
+			return new, out
+		} 
+		return null
 	}
-	__return = gen_state 0 last
+	return gen_state 0 last
 }
 
 // creates new 'empty' state
 fn new_state n:int one:int => list {
-	if n <= 0 __return = null
-	else if n == one __return = 1, new_state (n-1) one
-	else __return = 0, new_state (n-1) one
+	if n <= 0 return null
+	else if n == one return 1, new_state (n-1) one
+	else return 0, new_state (n-1) one
 }
 
 // iterates generating new states
